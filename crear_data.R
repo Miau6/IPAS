@@ -36,6 +36,19 @@ total_nacimientos <- bind_rows(nacimientos) %>%
   mutate(entidad_um_parto=substr(entidad_um_parto,4,nchar(entidad_um_parto))) %>% 
   filter(!grepl("otal|APLI", entidad_um_parto))
 
+total_nacimientos <- total_nacimientos %>% 
+  clean_names() %>% 
+  mutate(across(where(is.character), ~ str_to_title(.))) %>% 
+  rename(total=nacimientos,
+         entidad=entidad_um_parto) %>% 
+  mutate(entidad = case_when(
+    str_detect(entidad, "Ciudad De México") ~ "Ciudad de México",
+    str_detect(entidad, "Veracruz") ~ "Veracruz",
+    str_detect(entidad, "Coahuila") ~ "Coahuila",
+    str_detect(entidad, "Michoac.n") ~ "Michoacán",
+    TRUE ~ entidad
+  ))
+
 
 #####
 #muertes maternas
@@ -269,6 +282,21 @@ secretariado <- read_excel("../datos/Estatal-Delitos-2015-2024_dic2024.xlsx") %>
              entidad, subtipo_de_delito) %>% 
     summarise(total=sum(total)) %>% ungroup()
 
+
+secretariado <- secretariado %>% clean_names() %>% 
+  mutate(across(where(is.character), ~ str_to_title(.)),
+         entidad = case_when(
+           str_detect(entidad, "Ciudad De México") ~ "Ciudad de México",
+           str_detect(entidad, "Veracruz") ~ "Veracruz",
+           str_detect(entidad, "Coahuila") ~ "Coahuila",
+           str_detect(entidad, "Michoac.n") ~ "Michoacán",
+           TRUE ~ entidad),
+         fecha_inicio = format(as.Date(fecha_inicio, format = "%Y/%m/%d"), "%Y"),
+         fecha_inicio= as.integer(fecha_inicio),
+         subtipo_de_delito=str_to_sentence(subtipo_de_delito)) %>% 
+  rename(fecha=fecha_inicio,
+         delito=subtipo_de_delito) %>% 
+  select(-clave_ent)
 
 #####
 #enadid 
