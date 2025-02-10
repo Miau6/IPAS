@@ -313,20 +313,20 @@ enadid_18 <- enadid_18 %>% #clean_names() %>%
 
 
 
-enadid_24 <- foreign::read.dbf("../datos/TMujer1_18.dbf" )
+enadid_24 <- foreign::read.dbf("../datos/TMujer1_24.dbf" )
 
 
 enadid_24 <- enadid_24 %>% #clean_names() %>% 
   select(ENT, P5_2_1, P5_9, P5_23,P7_1, P7_2, P7_9,
-         P8_38, P8_39_01:P8_39_99,
+         P8_39, P8_41_01:P8_41_99,
          TM_USA,
          
-         FAC_PER
+         FAC_MOD
   ) %>% mutate(año=2024)
 
-total_enadid <- bind_rows(enadid_18, enadid_24)
 
-names(total_enadid) <- c("entidad", "edad", "hijos_nacidos", "abortos", 
+
+names(enadid_18) <- c("entidad", "edad", "hijos_nacidos", "abortos", 
                          "embarazo_actualmente", "deseo_embarazo", 
                          "motivo_no_hijos", "edad_primera_relacion_sexual", 
                          "no_uso", "pastillas_anticonceptivas", 
@@ -340,12 +340,37 @@ names(total_enadid) <- c("entidad", "edad", "hijos_nacidos", "abortos",
                          
                          )
 
+names(enadid_24) <- c("entidad", "edad", "hijos_nacidos", "abortos", 
+                      "embarazo_actualmente", "deseo_embarazo", 
+                      "motivo_no_hijos", "edad_primera_relacion_sexual", 
+                      "no_uso", "pastillas_anticonceptivas", 
+                      "inyecciones_anticonceptivas", "implante_subdermico",
+                      "parche_anticonceptivo","DIU", 
+                      "condon_masculino", "condon_femenino",
+                      "espumas_anticonceptivas", "abstinencia periódica",
+                      "coito_interrumpido","dia_siguiente",
+                      "otro_metodo", "no_responde", 
+                      "actual_metodo", "factor", "año"
+                      
+)
+
+total_enadid <- bind_rows(enadid_18, enadid_24)
 
 
+total_enadid <- total_enadid %>% clean_names() %>% 
+  mutate(cve_geo=as.integer(entidad)) %>%
+  left_join(conapo %>% group_by(cve_geo, "nom_ent"=entidad) %>% 
+              summarise(Total=n()) %>% ungroup() %>% 
+              select(cve_geo, nom_ent), by="cve_geo") %>%
+  mutate(across(where(is.factor), ~ as.integer(.)))
 
 
+total_enadid <- total_enadid %>% 
+  mutate(grupo_edad = cut(edad, breaks = seq(0, 40, by = 5), include.lowest = TRUE, right = FALSE, 
+                          labels = paste(seq(0, 35, by = 5), seq(4, 40, by = 5), sep = "-")))
 
 
+total_enadid$grupo_edad <- factor(total_enadid$grupo_edad, levels = c("Todas las edades", levels(total_enadid$grupo_edad)))
 
 
 
