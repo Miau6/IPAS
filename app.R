@@ -590,7 +590,34 @@ tabPanel("Anticoncepción", br(),
                             # plotlyOutput("gr_uso_anti_primera_vez", width = "auto", height = "auto"),
                             # br(),
                             # plotlyOutput("gr_uso_anticonceptivo", width = "auto", height = "auto")
-                  ))
+                  )), 
+         tabPanel("Comparación temporal",
+                  sidebarPanel(width = 3,
+                               # selectInput("enadid_año2", "Selecciona un año:",
+                               #             choices = c(2018, 2024),
+                               #             selected = 2024, multiple = F),
+
+                               selectInput("enadid_entidad3", "Selecciona una entidad:",
+                                           choices = sort(unique(enadid$nom_ent)),
+                                           multiple = F,
+                                           selected = unique(enadid$nom_ent),
+                                           selectize = TRUE),
+                               selectInput("enadid_edad3", "Selecciona grupos de edad:",
+                                           choices = sort(unique(enadid$grupo_edad)),
+                                           multiple = TRUE,
+                                           selected = unique(enadid$grupo_edad),
+                                           selectize = TRUE)
+                  ),
+                  mainPanel(width = 9,
+                            plotlyOutput("gr_uso_anti_primera_vez_tiempo", width = "auto", height = "auto"),
+                            br(),
+                            plotlyOutput("gr_uso_anticonceptivo_tiempo", width = "auto", height = "auto"),
+                            br(),
+                            plotlyOutput("gr_tasa_fecundidad_tiempo", width = "auto", height = "auto"),
+                            br(),
+                            plotlyOutput("gr_prom_abortos_tiempo", width = "auto", height = "auto")
+                  )
+         )
          
                   
                   )
@@ -1336,32 +1363,55 @@ demografia_reactive <- reactive({
       )
   })
   
+  enadid_reactive3 <- reactive({
+    enadid %>% 
+      filter(
+        # ano %in% input$enadid_año2, 
+        grupo_edad %in% input$enadid_edad3, 
+        nom_ent %in% input$enadid_entidad3
+      )
+  })
+  
   output$gr_tasa_fecundidad <- renderPlotly({
+    
+    data_nacional <- enadid_reactive() %>% 
+      filter(edad>=15, edad<=44) %>%
+      mutate(hijos_nacidos2 =as.integer(hijos_nacidos2)*factor) %>%
+      # group_by(nom_ent) %>%
+      summarise(mujeres=sum(factor),
+                hijos_vivos=sum(hijos_nacidos2 , na.rm = T)) %>%
+      mutate(tasa=hijos_vivos/mujeres, 
+             nom_ent="Nacional")
     
     gr_tasa <- enadid_reactive() %>% 
       filter(edad>=15, edad<=44) %>%
-      mutate(total_hijos=as.integer(hijos_nacidos)*factor) %>%
+      mutate(hijos_nacidos2 =as.integer(hijos_nacidos2)*factor) %>%
       group_by(nom_ent) %>%
       summarise(mujeres=sum(factor),
-                hijos_vivos=sum(total_hijos, na.rm = T)) %>%
+                hijos_vivos=sum(hijos_nacidos2 , na.rm = T)) %>%
       mutate(tasa=hijos_vivos/mujeres) %>%
+      bind_rows(data_nacional) %>% 
+      mutate(col_nacional=ifelse(nom_ent=="Nacional", 1, 0)) %>% 
       mutate(tooltip_text = paste0(
         "<b>Entidad:</b> ", nom_ent, "<br>",
         "<b>Tasa:</b> ", scales::comma(tasa, .01), "<br>"
       )) %>%  
       ggplot(aes(reorder(nom_ent, -tasa), tasa, 
-                 text=tooltip_text
+                 text=tooltip_text, fill=factor(col_nacional)
                  )) +
-      geom_col(fill="#f9592a") +
-      labs(x="Entidad", y="Tasa de fecundidad") +
+      geom_col() +
+      
     theme_ipas +
-      theme(axis.text.x = element_text(angle = 90))
+      theme(axis.text.x = element_text(angle = 90), 
+            legend.position = "none") +
+      scale_fill_manual(values = c("#f9592a", "grey")) +
+      labs(x="Entidad", y="Tasa de fecundidad", fill="") 
     
     ggplotly(gr_tasa, tooltip = "text") %>%
       layout(
         title = list(
           text = paste0(
-            "<b>Tasa de fecundidad por entidad</b>",
+            "<b>Tasa de fecundidad de los últimos 6 años por entidad</b>",
             "<br><span style='font-size:14px'>Año: ", input$enadid_año, "</span>"),
           font = list(family = "Montserrat", size = 18, color = "black"), x = 0),
         margin = list(l = 0, r = 0, b = 20, t = 50),
@@ -1380,24 +1430,39 @@ demografia_reactive <- reactive({
   
   output$gr_prom_abortos <- renderPlotly({
     
+    data_nacional <- enadid_reactive() %>% 
+      # filter(edad>=15, edad<=44) %>%
+      replace_na(list(abortos=0)) %>% 
+      mutate(abortos=abortos*factor) %>%
+      summarise(mujeres=sum(factor),
+                abortos=sum(abortos, na.rm = T)) %>%
+      mutate(tasa=abortos/mujeres) %>% 
+      mutate(nom_ent="Nacional") %>% ungroup()
+    
     gr_tasa <- enadid_reactive() %>% 
       # filter(edad>=15, edad<=44) %>%
+      replace_na(list(abortos=0)) %>% 
       mutate(abortos=abortos*factor) %>%
       group_by(nom_ent) %>%
       summarise(mujeres=sum(factor),
                 abortos=sum(abortos, na.rm = T)) %>%
-      mutate(tasa=abortos/mujeres*100) %>%
+      mutate(tasa=abortos/mujeres) %>%
+      bind_rows(data_nacional) %>% 
       mutate(tooltip_text = paste0(
         "<b>Entidad:</b> ", nom_ent, "<br>",
         "<b>Tasa:</b> ", scales::comma(tasa, .01), "<br>"
       )) %>%  
+      
+      mutate(col_nacional=ifelse(nom_ent=="Nacional", 1, 0)) %>% 
       ggplot(aes(reorder(nom_ent, -tasa), tasa, 
-                 text=tooltip_text
+                 text=tooltip_text, fill=factor(col_nacional)
       )) +
-      geom_col(fill="#b75dea") +
-      labs(x="Entidad", y="Tasa de abortos") +
+      geom_col(position = "dodge") +
       theme_ipas +
-      theme(axis.text.x = element_text(angle = 90))
+      theme(axis.text.x = element_text(angle = 90), 
+            legend.position = "none") +
+      scale_fill_manual(values = c("#b75dea", "grey")) +
+      labs(x="Entidad", y="Tasa de abortos", fill="") 
     
     ggplotly(gr_tasa, tooltip = "text") %>%
       layout(
@@ -1422,6 +1487,16 @@ demografia_reactive <- reactive({
   
   output$gr_uso_anti_primera_vez <- renderPlotly({
     
+    data_nacional <-  enadid_reactive2() %>% 
+      drop_na(edad_primera_relacion_sexual) %>% 
+      gather(tipo, Total, no_uso:no_responde) %>% 
+      filter(Total==2) %>% 
+      mutate(tipo=str_replace_all(tipo, "_", " ")) %>% 
+      group_by(tipo) %>%
+      summarise(uso_metodos=sum(factor)) %>% #group_by(nom_ent) %>% 
+      mutate(Porcentaje=uso_metodos/sum(uso_metodos), 
+             nom_ent="Nacional")
+    
     gr_tasa <- enadid_reactive2() %>% 
       drop_na(edad_primera_relacion_sexual) %>% 
       gather(tipo, Total, no_uso:no_responde) %>% 
@@ -1430,6 +1505,7 @@ demografia_reactive <- reactive({
       group_by(nom_ent, tipo) %>%
       summarise(uso_metodos=sum(factor)) %>% group_by(nom_ent) %>% 
       mutate(Porcentaje=uso_metodos/sum(uso_metodos)) %>% 
+      bind_rows(data_nacional) %>% 
       mutate(tooltip_text = paste0(
         "<b>Entidad:</b> ", nom_ent, "<br>",
         "<b>Tipo de anticonceptivo:</b> ", tipo, "<br>",
@@ -1470,10 +1546,17 @@ demografia_reactive <- reactive({
   
   output$gr_uso_anticonceptivo <- renderPlotly({
     
+    data_nacional <- enadid_reactive2() %>% 
+      group_by("tipo"=actual_metodo) %>%
+      summarise(uso_metodos=sum(factor)) %>% 
+      mutate(Porcentaje=uso_metodos/sum(uso_metodos)) %>% 
+      mutate(nom_ent="Nacional") %>% ungroup() 
+    
     gr_tasa <- enadid_reactive2() %>% 
       group_by("tipo"=actual_metodo, nom_ent) %>%
       summarise(uso_metodos=sum(factor)) %>% group_by(nom_ent) %>% 
       mutate(Porcentaje=uso_metodos/sum(uso_metodos)) %>% ungroup() %>% 
+      bind_rows(data_nacional) %>% 
       mutate(tipo=factor(tipo, 
                          labels = c("OTB", "Vasectomía", "Pastillas anticonceptivas", 
                                     "Inyecciones anticonceptivas",
@@ -1496,6 +1579,247 @@ demografia_reactive <- reactive({
       theme(axis.text.x = element_text(angle = 90), 
             legend.position = "none") +
       scale_y_continuous(labels = percent)
+    
+    ggplotly(gr_tasa, tooltip = "text") %>%
+      layout(
+        title = list(
+          text = paste0(
+            "<b>Uso de conceptivos actualmente</b>",
+            "<br><span style='font-size:14px'>Año: ", input$enadid_año2, "</span>"),
+          font = list(family = "Montserrat", size = 18, color = "black"), x = 0),
+        margin = list(l = 0, r = 0, b = 20, t = 50),
+        legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -.7,
+                      font=list(size=10)), title_y = 0.9,
+        annotations = list(
+          list(
+            text = "Fuente: elaboración propia con base en los datos dela ENADID | Ipas Lac",
+            xref = "paper", yref = "paper",
+            x = 0, y = -1,
+            showarrow = FALSE,
+            font = list(family = "Montserrat", size = 10, color = "black"),
+            align = "left"
+          )))
+  })
+  
+  #####
+  #en el tiempo #
+  output$gr_tasa_fecundidad_tiempo <- renderPlotly({
+    
+    data_nacional <- total_enadid %>%
+      filter(grupo_edad %in% input$enadid_edad3) %>% 
+      filter(edad>=15, edad<=44) %>%
+      mutate(hijos_nacidos2 =as.integer(hijos_nacidos2)*factor) %>%
+      group_by(ano) %>%
+      summarise(mujeres=sum(factor),
+                hijos_vivos=sum(hijos_nacidos2 , na.rm = T)) %>%
+      mutate(tasa=hijos_vivos/mujeres, 
+             nom_ent="Nacional")
+    
+    gr_tasa <- enadid_reactive3() %>% 
+      filter(edad>=15, edad<=44) %>%
+      mutate(hijos_nacidos2 =as.integer(hijos_nacidos2)*factor) %>%
+      group_by(nom_ent, ano) %>%
+      summarise(mujeres=sum(factor),
+                hijos_vivos=sum(hijos_nacidos2 , na.rm = T)) %>%
+      mutate(tasa=hijos_vivos/mujeres) %>%
+      bind_rows(data_nacional) %>% 
+      mutate(col_nacional=ifelse(nom_ent=="Nacional", 1, 0)) %>% 
+      mutate(tooltip_text = paste0(
+        "<b>Entidad:</b> ", nom_ent, "<br>",
+        "<b>Tasa:</b> ", scales::comma(tasa, .01), "<br>", 
+        "<b>Año:</b> ", ano, "<br>"
+      )) %>%  
+      ggplot(aes(nom_ent, tasa, 
+                 text=tooltip_text, fill=factor(ano)
+      )) +
+      geom_col(position = "dodge") +
+      
+      theme_ipas +
+      theme(axis.text.x = element_text(angle = 90), 
+            legend.position = "none") +
+      scale_fill_manual(values = c("#f9592a", "grey")) +
+      labs(x="Entidad", y="Tasa de fecundidad", fill="") 
+    
+    ggplotly(gr_tasa, tooltip = "text") %>%
+      layout(
+        title = list(
+          text = paste0(
+            "<b>Tasa de fecundidad de los últimos 6 años por entidad</b>",
+            "<br><span style='font-size:14px'>Año: ", input$enadid_año, "</span>"),
+          font = list(family = "Montserrat", size = 18, color = "black"), x = 0),
+        margin = list(l = 0, r = 0, b = 20, t = 50),
+        legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -.7,
+                      font=list(size=10)), title_y = 0.9,
+        annotations = list(
+          list(
+            text = "Fuente: elaboración propia con base en los datos dela ENADID | Ipas Lac",
+            xref = "paper", yref = "paper",
+            x = 0, y = -1,
+            showarrow = FALSE,
+            font = list(family = "Montserrat", size = 10, color = "black"),
+            align = "left"
+          )))
+  })
+  
+  output$gr_prom_abortos_tiempo <- renderPlotly({
+    
+    data_nacional <- 
+      total_enadid %>%
+      filter(grupo_edad %in% input$enadid_edad3) %>% 
+      replace_na(list(abortos=0)) %>% 
+      mutate(abortos=abortos*factor) %>%
+      group_by(ano) %>% 
+      summarise(mujeres=sum(factor),
+                abortos=sum(abortos, na.rm = T)) %>%
+      mutate(tasa=abortos/mujeres) %>% 
+      mutate(nom_ent="Nacional") %>% ungroup()
+    
+    gr_tasa <- enadid_reactive3() %>% 
+      # filter(edad>=15, edad<=44) %>%
+      replace_na(list(abortos=0)) %>% 
+      mutate(abortos=abortos*factor) %>%
+      group_by(nom_ent, ano) %>%
+      summarise(mujeres=sum(factor),
+                abortos=sum(abortos, na.rm = T)) %>%
+      mutate(tasa=abortos/mujeres) %>%
+      bind_rows(data_nacional) %>% 
+      mutate(tooltip_text = paste0(
+        "<b>Entidad:</b> ", nom_ent, "<br>",
+        "<b>Tasa:</b> ", scales::comma(tasa, .01), "<br>", 
+        "<b>Año:</b> ", ano, "<br>"
+      )) %>%  
+      
+      mutate(col_nacional=ifelse(nom_ent=="Nacional", 1, 0)) %>% 
+      ggplot(aes(nom_ent, tasa, 
+                 text=tooltip_text, fill=factor(ano)
+      )) +
+      geom_col(position = "dodge") +
+      theme_ipas +
+      theme(axis.text.x = element_text(angle = 90), 
+            legend.position = "none") +
+      scale_fill_manual(values = c("#b75dea", "grey")) +
+      labs(x="Entidad", y="Tasa de abortos", fill="") 
+    
+    ggplotly(gr_tasa, tooltip = "text") %>%
+      layout(
+        title = list(
+          text = paste0(
+            "<b>Tasa de abortos por cada 100 mujeres y por entidad</b>",
+            "<br><span style='font-size:14px'>Año: ", input$enadid_año, "</span>"),
+          font = list(family = "Montserrat", size = 18, color = "black"), x = 0),
+        margin = list(l = 0, r = 0, b = 20, t = 50),
+        legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -.7,
+                      font=list(size=10)), title_y = 0.9,
+        annotations = list(
+          list(
+            text = "Fuente: elaboración propia con base en los datos dela ENADID | Ipas Lac",
+            xref = "paper", yref = "paper",
+            x = 0, y = -1,
+            showarrow = FALSE,
+            font = list(family = "Montserrat", size = 10, color = "black"),
+            align = "left"
+          )))
+  })
+  
+  output$gr_uso_anti_primera_vez_tiempo <- renderPlotly({
+    
+    data_nacional <-  total_enadid %>%
+      filter(grupo_edad %in% input$enadid_edad3) %>% 
+      drop_na(edad_primera_relacion_sexual) %>% 
+      gather(tipo, Total, no_uso:no_responde) %>% 
+      filter(Total==2) %>% 
+      mutate(tipo=str_replace_all(tipo, "_", " ")) %>% 
+      group_by(tipo, ano) %>%
+      summarise(uso_metodos=sum(factor)) %>% group_by(ano) %>% 
+      mutate(Porcentaje=uso_metodos/sum(uso_metodos), 
+             nom_ent="Nacional")
+    
+    gr_tasa <- enadid_reactive3() %>% 
+      drop_na(edad_primera_relacion_sexual) %>% 
+      gather(tipo, Total, no_uso:no_responde) %>% 
+      filter(Total==2) %>% 
+      mutate(tipo=str_replace_all(tipo, "_", " ")) %>% 
+      group_by(nom_ent, tipo, ano) %>%
+      summarise(uso_metodos=sum(factor)) %>% group_by(nom_ent, ano) %>% 
+      mutate(Porcentaje=uso_metodos/sum(uso_metodos)) %>% 
+      bind_rows(data_nacional) %>% 
+      mutate(tooltip_text = paste0(
+        "<b>Entidad:</b> ", nom_ent, "<br>",
+        "<b>Tipo de anticonceptivo:</b> ", tipo, "<br>",
+        # "<b>Total:</b> ", scales::comma(uso_metodos, 1), "<br>",
+        "<b>Porcentaje:</b> ", scales::percent(Porcentaje, 1), "<br>"
+      )) %>%  
+      ggplot(aes(nom_ent, Porcentaje, 
+                 text=tooltip_text, fill=tipo
+      )) +
+      geom_col(position = "dodge") +
+      labs(x="Entidad", y="Porcentaje de uso\nde anticonceptivos") +
+      theme_ipas +
+      theme(axis.text.x = element_text(angle = 90), 
+            legend.position = "none") +
+      scale_y_continuous(labels = percent) +
+      facet_wrap(.~ano)
+    
+    ggplotly(gr_tasa, tooltip = "text") %>%
+      layout(
+        title = list(
+          text = paste0(
+            "<b>Total de uso de conceptivos en la primera relación sexual</b>",
+            "<br><span style='font-size:14px'>Año: ", input$enadid_año2, "</span>"),
+          font = list(family = "Montserrat", size = 18, color = "black"), x = 0),
+        margin = list(l = 0, r = 0, b = 20, t = 50),
+        legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -.7,
+                      font=list(size=10)), title_y = 0.9,
+        annotations = list(
+          list(
+            text = "Fuente: elaboración propia con base en los datos dela ENADID | Ipas Lac",
+            xref = "paper", yref = "paper",
+            x = 0, y = -1,
+            showarrow = FALSE,
+            font = list(family = "Montserrat", size = 10, color = "black"),
+            align = "left"
+          )))
+  })
+  
+  
+  output$gr_uso_anticonceptivo_tiempo <- renderPlotly({
+    
+    data_nacional <- total_enadid %>%
+      filter(grupo_edad %in% input$enadid_edad3) %>% 
+      group_by("tipo"=actual_metodo, ano) %>%
+      summarise(uso_metodos=sum(factor)) %>% group_by(ano) %>% 
+      mutate(Porcentaje=uso_metodos/sum(uso_metodos)) %>% 
+      mutate(nom_ent="Nacional") %>% ungroup() 
+    
+    gr_tasa <- enadid_reactive3() %>% 
+      group_by("tipo"=actual_metodo, nom_ent, ano) %>%
+      summarise(uso_metodos=sum(factor)) %>% group_by(nom_ent, ano) %>% 
+      mutate(Porcentaje=uso_metodos/sum(uso_metodos)) %>% ungroup() %>% 
+      bind_rows(data_nacional) %>% 
+      mutate(tipo=factor(tipo, 
+                         labels = c("OTB", "Vasectomía", "Pastillas anticonceptivas", 
+                                    "Inyecciones anticonceptivas",
+                                    "Implante anticonceptivo", "Parche anticonceptivo", 
+                                    "DIU", "Condón masculino", "Condón femenino"
+                         )
+      )) %>% 
+      mutate(tooltip_text = paste0(
+        "<b>Entidad:</b> ", nom_ent, "<br>",
+        "<b>Tipo de anticonceptivo:</b> ", tipo, "<br>",
+        # "<b>Total:</b> ", scales::comma(uso_metodos, 1), "<br>",
+        "<b>Porcentaje:</b> ", scales::percent(Porcentaje, 1), "<br>", 
+        "<b>Año:</b> ", ano, "<br>"
+      )) %>%  
+      ggplot(aes(nom_ent, Porcentaje, 
+                 text=tooltip_text, fill=tipo
+      )) +
+      geom_col(position = "dodge") +
+      labs(x="Entidad", y="Porcentaje de uso\nde anticonceptivos") +
+      theme_ipas +
+      theme(axis.text.x = element_text(angle = 90), 
+            legend.position = "none") +
+      scale_y_continuous(labels = percent) +
+      facet_wrap(.~ano)
     
     ggplotly(gr_tasa, tooltip = "text") %>%
       layout(
