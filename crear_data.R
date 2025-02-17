@@ -32,11 +32,28 @@ for (i in 2015:2024) {
     mutate(año=i)
 }
 
+nacimientos_20 <- list()
+for (i in 2015:2024) {
+  nacimientos_20[[i]] <- read_excel("../datos/nacimientos_20.xlsx", 
+                                 sheet = paste0(i)) %>% 
+    clean_names() %>% 
+    mutate(año=i)
+}
+
 total_nacimientos <- bind_rows(nacimientos) %>% 
   mutate(entidad_um_parto=substr(entidad_um_parto,4,nchar(entidad_um_parto))) %>% 
   filter(!grepl("otal|APLI", entidad_um_parto))
 
-total_nacimientos <- total_nacimientos %>% 
+total_nacimientos_20 <- bind_rows(nacimientos_20) %>% 
+  mutate(entidad_um_parto=substr(entidad_um_parto,4,nchar(entidad_um_parto))) %>% 
+  filter(!grepl("otal|APLI", entidad_um_parto)) %>% 
+  rename(nacimiento_20=nacimientos)
+
+ 
+
+totalidad_nacimientos <- total_nacimientos %>%
+  left_join(total_nacimientos_20) %>% 
+  mutate(proporcion=nacimiento_20/nacimientos) %>% 
   clean_names() %>% 
   mutate(across(where(is.character), ~ str_to_title(.))) %>% 
   rename(total=nacimientos,
@@ -240,7 +257,7 @@ apeo_juntas <- total_apeo %>% ungroup() %>%
 apeo_juntas <- apeo_juntas %>% clean_names() %>% 
   filter(ano %in% c (2017,2018,2019,2020,2021,2022,2023)) %>% 
   
-  group_by(unidad_medica,ano, tipo, gr_edad) %>%
+  group_by(unidad_medica,ano, atencion, tipo, gr_edad) %>%
   summarise(total = sum(total, na.rm = TRUE)) %>%
   mutate(unidad_medica = "Nacional") %>% 
   bind_rows(apeo_juntas %>% clean_names()) %>% 
@@ -256,7 +273,7 @@ apeo_juntas <- apeo_juntas %>% clean_names() %>%
            T~gr_edad
          ),
          tipo=str_to_sentence(tipo)) %>%
-  select(unidad_medica, ano, tipo, gr_edad, total)
+  select(unidad_medica, ano, atencion, tipo, gr_edad, total)
 
 #####
 #Secretariado
@@ -387,7 +404,7 @@ data_total <- list(
   total_causas_obs=causas_obs_juntas,
   apeo=apeo_juntas, 
   secretariado=secretariado, 
-  nacimientos=total_nacimientos, 
+  nacimientos=totalidad_nacimientos, 
   enadid=total_enadid
 )
 
