@@ -44,6 +44,7 @@ library(latex2exp)
 # Tablas interactivas y estilizadas
 library(DT)
 library(gt)
+library(htmltools)
 
 # #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-
 
@@ -560,9 +561,9 @@ tabPanel("Anticoncepción", br(),
                             br(),
                             plotlyOutput("gr_uso_anticonceptivo", width = "auto", height = "auto"),
                            br(), 
-                           h3("Tabla de indicador de uso de anticonceptivo en su primera relación sexual"),
+                           # h3("Tabla de indicador de uso de anticonceptivo en su primera relación sexual"),
                            DT::dataTableOutput("tabla_uso_anti_primera_vez"), br(), 
-                           h3("Tabla de indicador de uso actual de anticonceptivos"),
+                           # h3("Tabla de indicador de uso actual de anticonceptivos"),
                            DT::dataTableOutput("tabla_uso_anticonceptivo")
                   )
                   ),
@@ -592,9 +593,9 @@ tabPanel("Anticoncepción", br(),
                             br(),
                             plotlyOutput("gr_prom_abortos", width = "auto", height = "auto"),
                             br(),
-                            h3("Tabla de indicador de fecundidad de los últimos 6 años"),
+                            # h3("Tabla de indicador de fecundidad de los últimos 6 años"),
                             DT::dataTableOutput("tabla_fecundidad"), br(), 
-                            h3("Tabla de indicador de abortos"),
+                            # h3("Tabla de indicador de abortos"),
                             DT::dataTableOutput("tabla_abortos")
                             # plotlyOutput("gr_uso_anti_primera_vez", width = "auto", height = "auto"),
                             # br(),
@@ -1644,10 +1645,11 @@ demografia_reactive <- reactive({
       geom_col(position = "dodge") +
       
       theme_ipas +
-      theme(axis.text.x = element_text(angle = 90), 
+      theme(#axis.text.x = element_text(angle = 90), 
             legend.position = "none") +
       scale_fill_manual(values = c("#f9592a", "grey")) +
-      labs(x="Año", y="Tasa de fecundidad", fill="") 
+      labs(x="Año", y="Tasa de fecundidad", fill="")+
+      theme(axis.text.x = element_text(angle = 0))
     
     ggplotly(gr_tasa, tooltip = "text") %>%
       layout(
@@ -1704,10 +1706,11 @@ demografia_reactive <- reactive({
       )) +
       geom_col(position = "dodge") +
       theme_ipas +
-      theme(axis.text.x = element_text(angle = 90), 
+      theme(#axis.text.x = element_text(angle = 90), 
             legend.position = "none") +
       scale_fill_manual(values = c("#b75dea", "grey")) +
-      labs(x="Año", y="Tasa de abortos", fill="") 
+      labs(x="Año", y="Tasa de abortos", fill="") +
+      theme(axis.text.x = element_text(angle = 0))
     
     ggplotly(gr_tasa, tooltip = "text") %>%
       layout(
@@ -1756,15 +1759,17 @@ demografia_reactive <- reactive({
         "<b>Entidad:</b> ", nom_ent, "<br>",
         "<b>Tipo de anticonceptivo:</b> ", tipo, "<br>",
         # "<b>Total:</b> ", scales::comma(uso_metodos, 1), "<br>",
-        "<b>Porcentaje:</b> ", scales::percent(Porcentaje, 1), "<br>"
+        "<b>Porcentaje:</b> ", scales::percent(Porcentaje, 1), "<br>", 
+        "<b>Año:</b> ", ano, "<br>"
       )) %>%  
-      ggplot(aes(factor(ano), Porcentaje, 
-                 text=tooltip_text, fill=tipo
+      mutate(tipo=str_wrap(tipo, 12)) %>% 
+      ggplot(aes(tipo, Porcentaje, 
+                 text=tooltip_text, fill=factor(ano)
       )) +
       geom_col(position = "dodge") +
-      labs(x="Año", y="Porcentaje de uso\nde anticonceptivos") +
+      labs(x="Tipo", y="Porcentaje de uso\nde anticonceptivos") +
       theme_ipas +
-      theme(axis.text.x = element_text(angle = 90), 
+      theme(axis.text.x = element_text(angle = 0), 
             legend.position = "none") +
       scale_y_continuous(labels = percent) #+
       # facet_wrap(.~ano)
@@ -1825,13 +1830,14 @@ demografia_reactive <- reactive({
         "<b>Porcentaje:</b> ", scales::percent(Porcentaje, 1), "<br>", 
         "<b>Año:</b> ", ano, "<br>"
       )) %>%  
-      ggplot(aes(factor(ano), Porcentaje, 
-                 text=tooltip_text, fill=tipo
+      mutate(tipo=str_wrap(tipo, 12)) %>% 
+      ggplot(aes(tipo, Porcentaje, 
+                 text=tooltip_text, fill=factor(ano)
       )) +
       geom_col(position = "dodge") +
-      labs(x="Año", y="Porcentaje de uso\nde anticonceptivos") +
+      labs(x="Tipo", y="Porcentaje de uso\nde anticonceptivos") +
       theme_ipas +
-      theme(axis.text.x = element_text(angle = 90), 
+      theme(axis.text.x = element_text(angle = 0), 
             legend.position = "none") +
       scale_y_continuous(labels = percent) #  +
       # facet_wrap(.~ano)
@@ -1878,8 +1884,8 @@ demografia_reactive <- reactive({
         mutate(tasa=hijos_vivos/mujeres) %>%
         bind_rows(tabla_nacional)
       
-      tabla_estatal %>% 
-        arrange(desc(rowSums(across(where(is.numeric))))) %>% 
+      tabla_estatal %>%
+        arrange(desc(rowSums(across(where(is.numeric))))) %>%
         datatable(
           extensions = 'Buttons',
           options = list(
@@ -1890,10 +1896,17 @@ demografia_reactive <- reactive({
           ),
           rownames = FALSE,
           colnames = c("Entidad", "Año", "Total de mujeres",
-                       "Hijos vivos", "Tasa")
+                       "Hijos vivos", "Tasa"), 
+          caption = htmltools::tags$caption(
+            style = 'font-size: 25px; color: black;', # Personaliza el tamaño y color
+            "Tabla de indicador de fecundidad de los últimos 6 años"
+          )
         ) %>%
-        formatRound(columns = 4, digits = 0) %>%  
+        formatRound(columns = 4, digits = 0) %>%
         formatRound(columns = 5, digits = 2)
+      
+
+    
     
   })
   
@@ -1930,7 +1943,11 @@ demografia_reactive <- reactive({
         ),
         rownames = FALSE,
         colnames = c("Entidad", "Año", "Total de mujeres",
-                     "Total de abortos", "Tasa")
+                     "Total de abortos", "Tasa"),
+        caption = htmltools::tags$caption(
+          style = 'font-size: 25px; color: black;', # Personaliza el tamaño y color
+          "Tabla de indicador de abortos"
+        )
       ) %>%
       formatRound(columns = 4, digits = 0) %>%  
       formatRound(columns = 5, digits = 2)
@@ -1971,7 +1988,11 @@ demografia_reactive <- reactive({
         rownames = FALSE,
         colnames = c("Año", "Entidad", "Tipo de anticonceptivo",
                      "Total",
-                     "Porcentaje")
+                     "Porcentaje"), 
+        caption = htmltools::tags$caption(
+          style = 'font-size: 25px; color: black;', # Personaliza el tamaño y color
+          "Tabla de indicador de uso de anticonceptivos en la primera relación sexual"
+        )
       ) %>%
       formatRound(columns = 4, digits = 0) %>%  
       formatRound(columns = 5, digits = 2)
@@ -2017,7 +2038,11 @@ demografia_reactive <- reactive({
         rownames = FALSE,
         colnames = c("Año", "Entidad", "Tipo de anticonceptivo",
                      "Total",
-                     "Porcentaje")
+                     "Porcentaje"), 
+        caption = htmltools::tags$caption(
+          style = 'font-size: 25px; color: black;', # Personaliza el tamaño y color
+          "Tabla de indicador de uso actual de anticonceptivos"
+        )
       ) %>%
       formatRound(columns = 4, digits = 0) %>%  
       formatRound(columns = 5, digits = 2)
