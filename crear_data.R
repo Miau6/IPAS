@@ -392,7 +392,9 @@ total_enadid <- total_enadid %>%
 total_enadid$grupo_edad <- factor(total_enadid$grupo_edad, levels = c("Todas las edades", levels(total_enadid$grupo_edad)))
 
 
-
+##### tasa de fecundidad ####
+enadid_fecundidad <- readxl::read_excel("../datos/enadid_fecundidad.xlsx") %>% 
+  clean_names()
 
 
 #####
@@ -405,7 +407,8 @@ data_total <- list(
   apeo=apeo_juntas, 
   secretariado=secretariado, 
   nacimientos=totalidad_nacimientos, 
-  enadid=total_enadid
+  enadid=total_enadid, 
+  enadid_fecundidad=enadid_fecundidad
 )
 
 
