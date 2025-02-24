@@ -44,7 +44,6 @@ library(latex2exp)
 # Tablas interactivas y estilizadas
 library(DT)
 library(gt)
-library(htmltools)
 
 # #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-
 
@@ -90,100 +89,54 @@ theme_gg <- function(plot) {
 # Cargar datos - - - - - - - - - - - - - - - - - - - - - - -  - - - - - - - - - 
 df <- readRDS("data/data_ipas.rds")
 
-df_demografia <- df$conapo
+df_demografia <- df$conapo %>% 
+  mutate(entidad=case_when(
+    entidad=="República Mexicana"~"Nacional",
+    T~entidad
+  ))
 
 df_egresos_obs <- df$total_causas_obs %>% 
-  clean_names() 
-# %>% 
-#   group_by(unidad_medica, ano, tipo, gr_edad) %>%
-#   summarise(total = sum(total, na.rm = TRUE)) %>%
-#   mutate(unidad_medica = "Nacional") %>% 
-#   bind_rows(df$total_causas_obs %>% clean_names()) %>% 
-#   select(unidad_medica, ano, tipo, gr_edad, total) %>% 
-#   mutate(across(where(is.character), ~ str_to_title(.)),
-#          unidad_medica=str_to_title(unidad_medica),
-#          unidad_medica=case_when(
-#            unidad_medica %in% c("Ciudad De México", "Distrito Federal")~"Ciudad de México",
-#            T~unidad_medica),
-#          tipo = gsub("_", " ", tipo),
-#          gr_edad=case_when(
-#            gr_edad=="Todas Edades"~"Todas las edades",
-#            gr_edad=="Menores 20"~"Menores de 20",
-#            T~gr_edad)) %>% 
-#   mutate(tipo=str_to_sentence(tipo))
-# 
+  clean_names() %>% 
+  mutate(tipo=case_when(
+    tipo=="Parto unespontaneo"~"Parto único espontáneo",
+    tipo=="Hemorragia obstetrica"~"Hemorragia",
+    tipo=="Edema proteinuria y trastornos hipertensivos en el embarazo"~"Enfermedad hipertensiva del embarazo",
+    T~tipo
+  ))
+
+ 
 # Muertes maternas -------------------------------------------------------------
 
 df_muertes<-df$muertes_maternas %>% 
   clean_names() 
-# %>%
-#   mutate(across(where(is.character), ~ str_to_title(.)),
-#          entidad_de_defuncion = str_remove(entidad_de_defuncion, "[0-9]+"),
-#          entidad_de_defuncion = str_trim(entidad_de_defuncion),
-#          entidad_de_defuncion=case_when(
-#     str_detect(entidad_de_defuncion, "Veracruz") ~ "Veracruz",
-#     str_detect(entidad_de_defuncion, "Ciudad De Mexico") ~ "Ciudad de México",
-#     str_detect(entidad_de_defuncion, "Michoacan") ~ "Michoacán",
-#     str_detect(entidad_de_defuncion, "Coahuila") ~ "Coahuila",
-#     str_detect(entidad_de_defuncion, "Mexico") ~ "México",
-#     T~entidad_de_defuncion)) %>% 
-#   rename(entidad = entidad_de_defuncion)
+
 
 # ----------------------------------------------------------------------------
 
 df_apeo <- df$apeo %>% 
-  clean_names() 
-# %>%
-#   filter(ano %in% c (2017,2018,2019,2020,2021,2022,2023)) %>% 
-#   
-#   group_by(unidad_medica,ano, tipo, gr_edad) %>%
-#   summarise(total = sum(total, na.rm = TRUE)) %>%
-#   mutate(unidad_medica = "Nacional") %>% 
-#   bind_rows(df$apeo %>% clean_names()) %>% 
-#   mutate(across(where(is.character), ~ str_to_title(.)),
-#          unidad_medica=str_to_title(unidad_medica),
-#          unidad_medica=case_when(
-#            unidad_medica %in% c("Ciudad De México", "Distrito Federal")~"Ciudad de México",
-#            T~unidad_medica),
-#          tipo = gsub("_", " ", tipo),
-#          gr_edad=case_when(
-#            gr_edad=="Todas Edades"~"Todas las edades",
-#            gr_edad=="Menores 20"~"Menores de 20",
-#            T~gr_edad
-#          ),
-#          tipo=str_to_sentence(tipo)) %>%
-#   select(unidad_medica, ano, tipo, gr_edad, total)
+  clean_names() %>% 
+  filter(!ano==2019)
 
-df_nacimiento<-df$nacimientos #%>% 
-  # clean_names() %>% 
-  # mutate(across(where(is.character), ~ str_to_title(.))) %>% 
-  # rename(total=nacimientos,
-  #        entidad=entidad_um_parto) %>% 
-  # mutate(entidad = case_when(
-  #   str_detect(entidad, "Ciudad De México") ~ "Ciudad de México",
-  #   str_detect(entidad, "Veracruz") ~ "Veracruz",
-  #   str_detect(entidad, "Coahuila") ~ "Coahuila",
-  #   str_detect(entidad, "Michoac.n") ~ "Michoacán",
-  #   TRUE ~ entidad
-  # ))
+df_nacimiento<-df$nacimientos
 
+df_nacimiento_nacional <- df$nacimientos %>% 
+  group_by(ano) %>% 
+  summarise(total=sum(total)) %>% 
+  cbind(entidad=c("Nacional")) %>% 
+  select(entidad, total, ano)
+
+df_nacimiento <- bind_rows(df_nacimiento, df_nacimiento_nacional)
 
 # violencia--------------------------------------------------------------------
-df_violencia <- df$secretariado #%>% 
-  # clean_names() %>% 
-  # mutate(across(where(is.character), ~ str_to_title(.)),
-  #        entidad = case_when(
-  #          str_detect(entidad, "Ciudad De México") ~ "Ciudad de México",
-  #          str_detect(entidad, "Veracruz") ~ "Veracruz",
-  #          str_detect(entidad, "Coahuila") ~ "Coahuila",
-  #          str_detect(entidad, "Michoac.n") ~ "Michoacán",
-  #          TRUE ~ entidad),
-  #        fecha_inicio = format(as.Date(fecha_inicio, format = "%Y/%m/%d"), "%Y"),
-  #        fecha_inicio= as.integer(fecha_inicio),
-  #        subtipo_de_delito=str_to_sentence(subtipo_de_delito)) %>% 
-  # rename(fecha=fecha_inicio,
-  #        delito=subtipo_de_delito) %>% 
-  # select(-clave_ent)
+df_violencia <- df$secretariado 
+
+df_violencia<-df_violencia %>% 
+  group_by(fecha,delito) %>% 
+  summarise(total=sum(total)) %>% 
+  cbind(entidad=c("Nacional")) %>% 
+  select(fecha, entidad, delito, total) %>% 
+  rbind(df_violencia)
+
 
 # enadid-----------------------------------------------------------------------
 enadid <- df$enadid
@@ -191,23 +144,21 @@ enadid <- df$enadid
 enadid <- enadid %>% 
   filter(edad>=10)
 
-# enadid <- enadid %>% clean_names() %>% 
-#   mutate(cve_geo=as.integer(entidad)) %>% 
-#   left_join(conapo %>% 
-#               select(cve_geo, entidad))
+# endadid_fecundidad -------
+enadid_fecundidad <- df$enadid_fecundidad
 
 # #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-
 
 
 # UI - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ui <- shinyUI(
-# Diseño CSS y HTML -----------------------------------------------------------  
-tagList(
-  includeCSS("./www/style.css"),
-  fluidPage(
-    class = 'p-2',
-    tags$head(tags$link(rel = "stylesheet", type = "text/css", href = "styles.css"),
-              tags$style(HTML("
+  # Diseño CSS y HTML -----------------------------------------------------------  
+  tagList(
+    includeCSS("./www/style.css"),
+    fluidPage(
+      class = 'p-2',
+      tags$head(tags$link(rel = "stylesheet", type = "text/css", href = "styles.css"),
+                tags$style(HTML("
               
 .container-fluid {
         padding-left: 0px !important;
@@ -286,7 +237,7 @@ tagList(
             }
               
               ")),
-              tags$script(HTML("
+                tags$script(HTML("
               $(document).on('click', '#toggle_usuarias_sidebar', function() {
                 var sidebar = $('#usuarias_sidebar');
                 var mainPanel = $('.mainPanelClass'); // Clase personalizada para el mainPanel
@@ -300,343 +251,555 @@ tagList(
                 }
               });
               "))),
-    
-    add_busy_spinner(onstart = FALSE, spin = "fading-circle", color = "#f15a29"),
-    navbarPage(id = "navbar",
-      tags$img(src = "Logo_IPAS.png", height = "40px", style = "margin-right:10px; background-color:#f15a29"),
-      header = busy_start_up(
-        loader = spin_epic("flower", color = "#f15a29"),
-        text = "Cargando",
-        timeout = 1500,
-        color = "#f15a29",
-        background = "white"
-      ),
-      useShinydashboard(),
-# Pestañas --------------------------------------------------------------------  
-
-# Inicio ----------------------------------------------------------------------
-  tabPanel(
-    title = "Inicio", 
-    br(),
-    fluidRow(
-      column(4, 
-             div(class = "custom-card",
-                 actionButton("btn_demografia", "", 
-                              icon = icon("users-line", "fa-3x"), 
-                              class = "custom-button"),
-                 h4("Ir a Demografía", class = "custom-text")
-             )),
-      column(4, 
-            div(class = "custom-card",
-                actionButton("btn_nacimiento", "", 
-                             icon = icon("baby-carriage", "fa-3x"), 
-                             class = "custom-button"),
-                h4("Ir a Nacimientos", class = "custom-text")
-            )),
-      column(4, 
-             div(class = "custom-card",
-                 actionButton("btn_egresos", "", 
-                              icon = icon("chart-area", "fa-3x"), 
-                              class = "custom-button"),
-                 h4("Ir a Egresos Obstétricos", class = "custom-text")
-             )),
       
-      column(4, 
-             div(class = "custom-card",
-          actionButton("btn_muertes", "", 
-                       icon = icon("chart-column", "fa-3x"), 
-                       class = "custom-button"),
-          h4("Ir a Muertes maternas", class = "custom-text")
-      )),
-      
-      column(4, 
-             div(class = "custom-card",
-                 actionButton("btn_apeo", "", 
-                              icon = icon("hospital", "fa-3x"), 
-                              class = "custom-button"),
-                 h4("Ir a APEO", class = "custom-text")
-             )),
-      
-      column(4, 
-             div(class = "custom-card",
-                 actionButton("btn_violencia", "", 
-                              icon = icon("magnifying-glass-chart", "fa-3x"), 
-                              class = "custom-button"),
-                 h4("Ir a violencia", class = "custom-text")
-             )), 
-      column(4, 
-             div(class = "custom-card",
-                 actionButton("btn_enadid", "", 
-                              icon = icon("house", "fa-3x"), 
-                              class = "custom-button"),
-                 h4("Ir a Anticoncepción", class = "custom-text")
-             ))
-      )),
-# Demografía ----------------------------------------------------------------------
-
-  tabPanel("Demografía",  br(),
-  tabsetPanel(
-  tabPanel("Por entidad", br(),   
-    sidebarPanel(width = 3,
-      sliderInput("demografia_ano", "Selecciona un año:", 
-                  min = min(df_demografia$ano), max =max(df_demografia$ano), 
-                  value = 2024, step = 1),
-      
-      selectInput("demografia_grupo_edad", "Selecciona un rango de edad:", 
-                  choices = unique(df_demografia$grupo_edad), multiple = T, selected = "Todos las edades"),
-      
-      selectInput("demografia_sexo", "Selecciona el sexo:", 
-                  choices = unique(df_demografia$sexo), multiple = TRUE, selected = c("Hombres", "Mujeres")),
-      
-      selectInput("demografia_entidad", "Selecciona una entidad:", 
-                  choices = unique(df_demografia$entidad), 
-                  multiple = TRUE, 
-                  selected = setdiff(unique(df_demografia$entidad), "República Mexicana"),
-                  selectize = TRUE)
-      ),
-    mainPanel(width = 9,
-      plotlyOutput("gr_demografia", width = "auto", height = "auto"),
-              br(),
-              DT::dataTableOutput("tabla_demografia")
-    )),
-        
-  tabPanel("Por grupo de edad", br(),
-           
-           sidebarPanel(width = 3,br(),
-             sliderInput("demografia_ano_edad", "Selecciona un año:", 
-                         min = min(df_demografia$ano), max = max(df_demografia$ano), 
-                         value = max(df_demografia$ano), step = 1),
-             
-             selectInput("demografia_entidad_edad", "Selecciona una entidad:", 
-                         choices = unique(df_demografia$entidad), 
-                         multiple = F, 
-                         selected = "República Mexicana")
-             ),
-           mainPanel(plotlyOutput("gr_demografia_edad"),
-                     br(),
-                     DT::dataTableOutput("tabla_demografia_edad")  # Tabla interactiva
-           )))),
-
-#  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  
-
-
-  tabPanel("Nacimientos", br(),
-      sidebarPanel(width = 3, br(),
-                   selectInput("nacimiento_ano", "Selecciona un año:", 
-                               choices = unique(df_nacimiento$ano), 
-                               selected = max(df_nacimiento$ano), multiple = F),
-                   selectInput("nacimiento_entidad", "Selecciona una entidad:",
-                               choices = unique(df_nacimiento$entidad),
-                               multiple = TRUE, 
-                               selected = unique(df_nacimiento$entidad))
-                   
-      ),
-      
-      mainPanel(
-        plotlyOutput("gr_nacimiento"), br(),br(),
-        DT::dataTableOutput("tabla_nacimiento")  # Agrega la tabla aquí
-        
-      )),
-
-#  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  
-
-    tabPanel("Egresos Obstétricos", br(),
-             sidebarPanel(width = 3, br(),
-               selectInput("egresos_ano", "Selecciona un año:", 
-                           choices = unique(df_egresos_obs$ano), 
-                           selected = 2024),
-               selectInput("egresos_unidad_medica", "Selecciona una entidad:",
-                           choices = unique(df_egresos_obs$unidad_medica),
-                           multiple = F,
-                           selected = c("Nacional")),
-               
-               selectInput("egresos_grupo_edad", "Selecciona un grupo de edad:", 
-                           choices = unique(df_egresos_obs$gr_edad), 
-                           selected = "Todas las edades"),
-               
-               selectInput("egresos_tipo", "Selecciona una causa:", 
-                           choices = unique(df_egresos_obs$tipo), 
-                           multiple = T, selected = df_egresos_obs$tipo)
-             ),
-             mainPanel(
-               plotlyOutput("grafico_egresos"), br(),br(),
-               DT::dataTableOutput("tabla_egresos")  # Agrega la tabla aquí
-               
-             )),
-
-#  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  
-
-tabPanel("Muertes maternas", br(),
-         sidebarPanel(width = 3, br(),
-                      selectInput("muertes_ano", "Selecciona un año:", 
-                                  choices = unique(df_muertes$ano), 
-                                  selected = max(df_muertes$ano), multiple = F),
-                      selectInput("muertes_entidad", "Selecciona una entidad:",
-                                  choices = unique(df_muertes$entidad),
-                                  multiple = TRUE, 
-                                  selected = unique(df_muertes$entidad)),
-                      selectInput("muertes_edad", "Selecciona un grupo de edad:", 
-                                  choices = unique(df_muertes$gr_edad), 
-                                  selected = c("Todas Edades", "Menores 20"), multiple = T)
-                      
-         ),
-         
-         mainPanel(
-           plotlyOutput("gr_muertes"), br(),br(),
-           DT::dataTableOutput("tabla_muertes")  # Agrega la tabla aquí
-
-         )),
-
-#  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  
-
-tabPanel("APEO", br(),
-         sidebarPanel(width = 3, br(),
-                      selectInput("apeo_ano", "Selecciona un año:", 
-                                  choices = unique(df_apeo$ano), 
-                                  selected = 2023),
-                      selectInput("apeo_unidad_medica", "Selecciona una entidad:",
-                                  choices = unique(df_apeo$unidad_medica),
-                                  multiple = F,
-                                  selected = c("Nacional")),
-                      
-                      selectInput("apeo_grupo_edad", "Selecciona un grupo de edad:", 
-                                  choices = unique(df_apeo$gr_edad), 
-                                  selected = "Todas las edades"),
-                      
-                      selectInput("apeo_tipo", "Selecciona una causa:", 
-                                  choices = unique(df_apeo$tipo), 
-                                  multiple = T, selected = df_apeo$tipo)
-         ),
-         mainPanel(
-           plotlyOutput("grafico_apeo"), br(),br(),
-           DT::dataTableOutput("tabla_apeo")  # Agrega la tabla aquí
-           
-         )),
-
-tabPanel("Violencias", br(),
-         sidebarPanel(width = 3,
-                      sliderInput("violencia_fecha", "Selecciona un año:", 
-                                  min = min(df_violencia$fecha), max =max(df_violencia$fecha), 
-                                  value = 2024, step = 1),
-                      
-                      selectInput("violencia_delito", "Selecciona el o los delitos:", 
-                                  choices = unique(df_violencia$delito), multiple = TRUE,
-                                  selected = c("Violencia familiar", "Abuso sexual", "Violación")),
-                      
-                      selectInput("violencia_entidad", "Selecciona una entidad:", 
-                                  choices = unique(df_violencia$entidad), 
-                                  multiple = TRUE, 
-                                  selected = setdiff(unique(df_violencia$entidad), "Nacional"),
-                                  selectize = TRUE)
-         ),
-         mainPanel(width = 9,
-                   plotlyOutput("gr_violencia", width = "auto", height = "auto"),
+      add_busy_spinner(onstart = FALSE, spin = "fading-circle", color = "#f15a29"),
+      navbarPage(id = "navbar",
+                 tags$img(src = "Logo_IPAS.png", height = "40px", style = "margin-right:10px; background-color:#f15a29"),
+                 header = busy_start_up(
+                   loader = spin_epic("flower", color = "#f15a29"),
+                   text = "Cargando",
+                   timeout = 1500,
+                   color = "#f15a29",
+                   background = "white"
+                 ),
+                 useShinydashboard(),
+                 # Pestañas --------------------------------------------------------------------  
+                 
+                 # Inicio ----------------------------------------------------------------------
+                 tabPanel(
+                   title = "Inicio", 
                    br(),
-                   DT::dataTableOutput("tabla_violencia")
-         )), 
-tabPanel("Anticoncepción", br(),
-         tabsetPanel(
-          
-         
-         # ), 
-         tabPanel("Anticonceptivos", 
-                  sidebarPanel(width = 3,
-                               selectInput("enadid_año2", "Selecciona un año:", 
-                                           choices = c(2018, 2024), 
-                                           selected = 2024, multiple = F),
-                               
-                               selectInput("enadid_entidad2", "Selecciona una entidad:",
-                                           choices = sort(unique(enadid$nom_ent)),
-                                           multiple = TRUE,
-                                           selected = unique(enadid$nom_ent),
-                                           selectize = TRUE),
-                               selectInput("enadid_edad2", "Selecciona grupos de edad:",
-                                           choices = sort(unique(enadid$grupo_edad)),
-                                           multiple = TRUE,
-                                           selected = unique(enadid$grupo_edad),
-                                           selectize = TRUE)
-                  ),
-                  mainPanel(width = 9,
-                           plotlyOutput("gr_uso_anti_primera_vez", width = "auto", height = "auto"),
-                            br(),
-                            plotlyOutput("gr_uso_anticonceptivo", width = "auto", height = "auto"),
-                           br(), 
-                           # h3("Tabla de indicador de uso de anticonceptivo en su primera relación sexual"),
-                           DT::dataTableOutput("tabla_uso_anti_primera_vez"), br(), 
-                           # h3("Tabla de indicador de uso actual de anticonceptivos"),
-                           DT::dataTableOutput("tabla_uso_anticonceptivo")
-                  )
-                  ),
-         tabPanel("Indicadores",
-                  sidebarPanel(width = 3,
-                               selectInput("enadid_año", "Selecciona un año:", 
-                                           choices = c(2018, 2024), 
-                                           selected = 2024, multiple = F),
-                               
-                               # selectInput("violencia_delito", "Selecciona el o los delitos:", 
-                               #             choices = unique(df_violencia$delito), multiple = TRUE,
-                               #             selected = c("Violencia familiar", "Abuso sexual", "Violación")),
-                               # 
-                               selectInput("enadid_entidad", "Selecciona una entidad:",
-                                           choices = sort(unique(enadid$nom_ent)),
-                                           multiple = TRUE,
-                                           selected = unique(enadid$nom_ent),
-                                           selectize = TRUE),
-                               selectInput("enadid_edad", "Selecciona grupos de edad:",
-                                           choices = sort(unique(enadid$grupo_edad)),
-                                           multiple = TRUE,
-                                           selected = unique(enadid$grupo_edad),
-                                           selectize = TRUE)
-                  ),
-                  mainPanel(width = 9,
-                            plotlyOutput("gr_tasa_fecundidad", width = "auto", height = "auto"),
-                            br(),
-                            plotlyOutput("gr_prom_abortos", width = "auto", height = "auto"),
-                            br(),
-                            # h3("Tabla de indicador de fecundidad de los últimos 6 años"),
-                            DT::dataTableOutput("tabla_fecundidad"), br(), 
-                            # h3("Tabla de indicador de abortos"),
-                            DT::dataTableOutput("tabla_abortos")
-                            # plotlyOutput("gr_uso_anti_primera_vez", width = "auto", height = "auto"),
-                            # br(),
-                            # plotlyOutput("gr_uso_anticonceptivo", width = "auto", height = "auto")
-                  )), 
-         tabPanel("Comparación temporal",
-                  sidebarPanel(width = 3,
-                               # selectInput("enadid_año2", "Selecciona un año:",
-                               #             choices = c(2018, 2024),
-                               #             selected = 2024, multiple = F),
-
-                               selectInput("enadid_entidad3", "Selecciona una entidad:",
-                                           choices = sort(unique(enadid$nom_ent)),
-                                           multiple = F,
-                                           selected = unique(enadid$nom_ent),
-                                           selectize = TRUE),
-                               selectInput("enadid_edad3", "Selecciona grupos de edad:",
-                                           choices = sort(unique(enadid$grupo_edad)),
-                                           multiple = TRUE,
-                                           selected = unique(enadid$grupo_edad),
-                                           selectize = TRUE)
-                  ),
-                  mainPanel(width = 9,
-                            plotlyOutput("gr_uso_anti_primera_vez_tiempo", width = "auto", height = "auto"),
-                            br(),
-                            plotlyOutput("gr_uso_anticonceptivo_tiempo", width = "auto", height = "auto"),
-                            br(),
-                            plotlyOutput("gr_tasa_fecundidad_tiempo", width = "auto", height = "auto"),
-                            br(),
-                            plotlyOutput("gr_prom_abortos_tiempo", width = "auto", height = "auto")
-                  )
-         )
-         
-                  
-                  )
-         
-         )
-
-
-
-  ))))
+                   fluidRow(
+                     column(4, 
+                            div(class = "custom-card",
+                                actionButton("btn_demografia", "", 
+                                             icon = icon("users-line", "fa-3x"), 
+                                             class = "custom-button"),
+                                h4("Ir a Demografía", class = "custom-text")
+                            )),
+                     column(4, 
+                            div(class = "custom-card",
+                                actionButton("btn_nacimiento", "", 
+                                             icon = icon("baby-carriage", "fa-3x"), 
+                                             class = "custom-button"),
+                                h4("Ir a Nacimientos", class = "custom-text")
+                            )),
+                     column(4, 
+                            div(class = "custom-card",
+                                actionButton("btn_egresos", "", 
+                                             icon = icon("chart-area", "fa-3x"), 
+                                             class = "custom-button"),
+                                h4("Ir a Egresos Obstétricos", class = "custom-text")
+                            )),
+                     
+                     column(4, 
+                            div(class = "custom-card",
+                                actionButton("btn_muertes", "", 
+                                             icon = icon("chart-column", "fa-3x"), 
+                                             class = "custom-button"),
+                                h4("Ir a Muertes maternas", class = "custom-text")
+                            )),
+                     
+                     column(4, 
+                            div(class = "custom-card",
+                                actionButton("btn_apeo", "", 
+                                             icon = icon("hospital", "fa-3x"), 
+                                             class = "custom-button"),
+                                h4("Ir a APEO", class = "custom-text")
+                            )),
+                     
+                     column(4, 
+                            div(class = "custom-card",
+                                actionButton("btn_violencia", "", 
+                                             icon = icon("magnifying-glass-chart", "fa-3x"), 
+                                             class = "custom-button"),
+                                h4("Ir a violencia", class = "custom-text")
+                            )), 
+                     column(4, 
+                            div(class = "custom-card",
+                                actionButton("btn_enadid", "", 
+                                             icon = icon("house", "fa-3x"), 
+                                             class = "custom-button"),
+                                h4("Ir a Anticoncepción", class = "custom-text")
+                            ))
+                   )),
+                 # Demografía ----------------------------------------------------------------------
+                 
+                 tabPanel("Demografía",  br(),
+                          tabsetPanel(
+                            tabPanel("Por entidad", br(),   
+                                     sidebarPanel(width = 3,
+                                                  sliderInput("demografia_ano", "Selecciona un año:", 
+                                                              min = min(df_demografia$ano), max =max(df_demografia$ano), 
+                                                              value = 2024, step = 1),
+                                                  
+                                                  # selectInput("demografia_grupo_edad", "Selecciona un rango de edad:", 
+                                                  #             choices = unique(df_demografia$grupo_edad), multiple = T, selected = "Todos las edades"),
+                                                  
+                                                  selectInput("demografia_sexo", "Selecciona el sexo:", 
+                                                              choices = unique(df_demografia$sexo), multiple = TRUE, selected = c("Hombres", "Mujeres")),
+                                                  
+                                                  selectInput("demografia_entidad", "Selecciona una entidad:", 
+                                                              choices = unique(df_demografia$entidad), 
+                                                              multiple = TRUE, 
+                                                              selected = setdiff(unique(df_demografia$entidad), "Nacional"),
+                                                              selectize = TRUE)
+                                     ),
+                                     mainPanel(width = 9,
+                                               plotOutput("gr_demografia"),
+                                               br(),
+                                               DT::dataTableOutput("tabla_demografia")
+                                     )),
+                            
+                            tabPanel("Por grupo de edad", br(),
+                                     
+                                     sidebarPanel(width = 3,br(),
+                                                  sliderInput("demografia_ano_edad", "Selecciona un año:", 
+                                                              min = min(df_demografia$ano), max = max(df_demografia$ano), 
+                                                              value = max(df_demografia$ano), step = 1),
+                                                  
+                                                  selectInput("demografia_entidad_edad", "Selecciona una entidad:", 
+                                                              choices = unique(df_demografia$entidad), 
+                                                              multiple = F, 
+                                                              selected = "Nacional")
+                                     ),
+                                     mainPanel(plotOutput("gr_demografia_edad"),
+                                               br(),
+                                               DT::dataTableOutput("tabla_demografia_edad")  # Tabla interactiva
+                                     )),
+                            tabPanel("Por año", br(),
+                                     
+                                     sidebarPanel(width = 3, br(),
+                                           selectInput("demografia_ano_ano", "Selecciona un año:", 
+                                                       choices = unique(df_demografia$ano), 
+                                                       multiple = TRUE, 
+                                                       selected = unique(df_demografia$ano)),
+                                           
+                                           selectInput("demografia_sexo_ano", "Selecciona el sexo:", 
+                                                       choices = unique(df_demografia$sexo), 
+                                                       multiple = TRUE, 
+                                                       selected = c("Hombres", "Mujeres")),
+                                           
+                                           selectInput("demografia_entidad_ano", "Selecciona una entidad:", 
+                                                       choices = unique(df_demografia$entidad), 
+                                                       multiple = F, 
+                                                       selected = "Nacional")
+                                     ),
+                                     mainPanel(plotOutput("gr_demografia_ano"),
+                                               br(),
+                                               DT::dataTableOutput("tabla_demografia_ano")  # Tabla interactiva
+                                     )
+                                     )
+                            )),
+                 
+                 #  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  
+                 
+                 
+                 tabPanel("Nacimientos", br(),
+                        tabsetPanel(
+                          tabPanel("Entidad", br(),
+                          sidebarPanel(width = 3, br(),
+                                       selectInput("nacimiento_ano", "Selecciona un año:", 
+                                                   choices = unique(df_nacimiento$ano), 
+                                                   selected = max(df_nacimiento$ano), multiple = F),
+                                       selectInput("nacimiento_entidad", "Selecciona una entidad:",
+                                                   choices = unique(df_nacimiento$entidad),
+                                                   multiple = TRUE, 
+                                                   selected = unique(df_nacimiento$entidad))
+                                       ),
+                          
+                          mainPanel(
+                            plotOutput("gr_nacimiento"), br(),br(),
+                            DT::dataTableOutput("tabla_nacimiento")  # Agrega la tabla aquí
+                            
+                          )),
+                          
+                          tabPanel("Año", br(),
+                                   sidebarPanel(width = 3, br(),
+                                                selectInput("nacimiento_ano_ano", "Selecciona un año:", 
+                                                            choices = unique(df_nacimiento$ano), 
+                                                            selected = c(df_nacimiento$ano), multiple = T),
+                                                selectInput("nacimiento_entidad_ano", "Selecciona una entidad:",
+                                                            choices = unique(df_nacimiento$entidad),
+                                                            multiple = F, 
+                                                            selected = unique(df_nacimiento$entidad))
+                                   ),
+                                   
+                                   mainPanel(
+                                     plotOutput("gr_nacimiento_ano"), br(),br(),
+                                     DT::dataTableOutput("tabla_nacimiento_ano")  # Agrega la tabla aquí
+                                     
+                                   )),
+                          
+                          tabPanel("Tasas global de fecundidad", br(),
+                                   sidebarPanel(width = 3,
+                                                selectInput("enadid_año", "Selecciona un año:", 
+                                                            choices = c(2018, 2024), 
+                                                            selected = 2024, multiple = F),
+                                                
+                                                # selectInput("violencia_delito", "Selecciona el o los delitos:", 
+                                                #             choices = unique(df_violencia$delito), multiple = TRUE,
+                                                #             selected = c("Violencia familiar", "Abuso sexual", "Violación")),
+                                                # 
+                                                selectInput("enadid_entidad", "Selecciona una entidad:",
+                                                            choices = sort(unique(enadid_fecundidad$nom_ent)),
+                                                            multiple = TRUE,
+                                                            selected = unique(enadid_fecundidad$nom_ent),
+                                                            selectize = TRUE)#,
+                                                # selectInput("enadid_edad", "Selecciona grupos de edad:",
+                                                #             choices = sort(unique(enadid_fecundidad$grupo_edad)),
+                                                #             multiple = TRUE,
+                                                #             selected = unique(enadid_fecundidad$grupo_edad),
+                                                #             selectize = TRUE)
+                                   ),
+                                   mainPanel(width = 9,
+                                             plotOutput("gr_tasa_fecundidad"),
+                                             br(),
+                                             # plotOutput("gr_prom_abortos"),
+                                             # br(),
+                                             # h3("Tabla de indicador de fecundidad de los últimos 6 años"),
+                                             DT::dataTableOutput("tabla_fecundidad"), br(), 
+                                             # h3("Tabla de indicador de abortos"),
+                                             # DT::dataTableOutput("tabla_abortos")
+                                             # plotOutput("gr_uso_anti_primera_vez"),
+                                             # br(),
+                                             # plotOutput("gr_uso_anticonceptivo")
+                                   ))
+                          
+                          
+                        )),
+                 #  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  
+                 
+                 tabPanel("Egresos Obstétricos", br(),
+                          tabsetPanel(
+                          tabPanel("Egresos",br(),
+                          sidebarPanel(width = 3, br(),
+                                       selectInput("egresos_ano", "Selecciona un año:", 
+                                                   choices = unique(df_egresos_obs$ano), 
+                                                   selected = 2024),
+                                       selectInput("egresos_unidad_medica", "Selecciona una entidad:",
+                                                   choices = unique(df_egresos_obs$unidad_medica),
+                                                   multiple = F,
+                                                   selected = c("Nacional")),
+                                       
+                                       selectInput("egresos_grupo_edad", "Selecciona un grupo de edad:", 
+                                                   choices = unique(df_egresos_obs$gr_edad), 
+                                                   selected = "Todas las edades"),
+                                       
+                                       selectInput("egresos_tipo", "Selecciona una causa:", 
+                                                   choices = unique(df_egresos_obs$tipo), 
+                                                   multiple = T, selected = df_egresos_obs$tipo)
+                          ),
+                          mainPanel(
+                            plotOutput("grafico_egresos"), br(),br(),
+                            DT::dataTableOutput("tabla_egresos")  # Agrega la tabla aquí
+                            
+                          )),
+                          tabPanel("Año", br(),
+                                   sidebarPanel(width = 3, br(),
+                                                selectInput("egresos_ano_ano", "Selecciona un año:", 
+                                                            choices = unique(df_egresos_obs$ano), 
+                                                            multiple = T,
+                                                            selected = unique(df_egresos_obs$ano)),
+                                                selectInput("egresos_unidad_medica_ano", "Selecciona una entidad:",
+                                                            choices = unique(df_egresos_obs$unidad_medica),
+                                                            multiple = F,
+                                                            selected = c("Nacional")),
+                                                
+                                                selectInput("egresos_grupo_edad_ano", "Selecciona un grupo de edad:", 
+                                                            choices = unique(df_egresos_obs$gr_edad), 
+                                                            selected = "Todas las edades")#,
+                                                
+                                                # selectInput("egresos_tipo_ano", "Selecciona una causa:", 
+                                                #             choices = unique(df_egresos_obs$tipo), 
+                                                #             multiple = T, selected = df_egresos_obs$tipo)
+                                   ),
+                                   mainPanel(
+                                     plotOutput("grafico_egresos_ano"), br(),br(),
+                                     DT::dataTableOutput("tabla_egresos_ano")  # Agrega la tabla aquí
+                                     
+                                   )),
+                          tabPanel("Entidad", br(),
+                                   sidebarPanel(width = 3, br(),
+                                                selectInput("egresos_ano_entidad", "Selecciona un año:", 
+                                                            choices = unique(df_egresos_obs$ano), 
+                                                            multiple = F,
+                                                            selected = unique(df_egresos_obs$ano)),
+                                                selectInput("egresos_unidad_medica_entidad", "Selecciona una entidad:",
+                                                            choices = unique(df_egresos_obs$unidad_medica),
+                                                            multiple = T,
+                                                            selected = c("Nacional", "Aguascalientes")),
+                                                
+                                                selectInput("egresos_grupo_edad_entidad", "Selecciona un grupo de edad:", 
+                                                            choices = unique(df_egresos_obs$gr_edad), 
+                                                            selected = "Todas las edades")#,
+                                                
+                                                # selectInput("egresos_tipo_entidad", "Selecciona una causa:", 
+                                                #             choices = unique(df_egresos_obs$tipo), 
+                                                #             multiple = T, selected = df_egresos_obs$tipo)
+                                   ),
+                                   mainPanel(
+                                     plotOutput("grafico_egresos_entidad"), br(),br(),
+                                     DT::dataTableOutput("tabla_egresos_entidad")  # Agrega la tabla aquí
+                                     
+                                   ))
+                          )),
+                 
+                 #  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  
+                 
+                 tabPanel("Muertes maternas", br(),
+                          tabsetPanel(
+                            tabPanel("Total",br(),
+                          sidebarPanel(width = 3, br(),
+                                       selectInput("muertes_ano", "Selecciona un año:", 
+                                                   choices = unique(df_muertes$ano), 
+                                                   selected = max(df_muertes$ano), multiple = F),
+                                       selectInput("muertes_entidad", "Selecciona una entidad:",
+                                                   choices = unique(df_muertes$entidad),
+                                                   multiple = TRUE, 
+                                                   selected = unique(df_muertes$entidad))#,
+                                       # selectInput("muertes_edad", "Selecciona un grupo de edad:", 
+                                       #             choices = unique(df_muertes$gr_edad), 
+                                       #             selected = c("Todas Edades", "Menores 20"), multiple = T)
+                          ),
+                          
+                          mainPanel(
+                            plotOutput("gr_muertes"), br(),br(),
+                            DT::dataTableOutput("tabla_muertes")  # Agrega la tabla aquí
+                            
+                          )),
+                          tabPanel("Mortalidad materna (pendiente)",br()))),
+                 #  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  
+                 
+                 tabPanel("APEO", br(),
+                          tabsetPanel(
+                            tabPanel("Tipo",br(),
+                          sidebarPanel(width = 3, br(),
+                                       selectInput("apeo_ano", "Selecciona un año:", 
+                                                   choices = unique(df_apeo$ano), 
+                                                   selected = 2023),
+                                       selectInput("apeo_unidad_medica", "Selecciona una entidad:",
+                                                   choices = unique(df_apeo$unidad_medica),
+                                                   multiple = F,
+                                                   selected = c("Nacional")),
+                                       
+                                       selectInput("apeo_grupo_edad", "Selecciona un grupo de edad:", 
+                                                   choices = unique(df_apeo$gr_edad), 
+                                                   selected = "Todas las edades")#,
+                                       
+                                       # selectInput("apeo_tipo", "Selecciona una causa:", 
+                                       #             choices = unique(df_apeo$tipo), 
+                                       #             multiple = T, selected = df_apeo$tipo)
+                          ),
+                          mainPanel(
+                            plotOutput("grafico_apeo"), br(),br(),
+                            DT::dataTableOutput("tabla_apeo")  # Agrega la tabla aquí
+                            
+                          )),
+                          
+                          
+                        tabPanel("Año",br(),
+                                  sidebarPanel(width = 3, br(),
+                                               selectInput("apeo_ano_ano", "Selecciona un año:", 
+                                                           choices = unique(df_apeo$ano),
+                                                           multiple = T,
+                                                           selected = unique(df_apeo$ano)),
+                                               selectInput("apeo_unidad_medica_ano", "Selecciona una entidad:",
+                                                           choices = unique(df_apeo$unidad_medica),
+                                                           multiple = F,
+                                                           selected = c("Nacional")),
+                                               
+                                               selectInput("apeo_grupo_edad_ano", "Selecciona un grupo de edad:", 
+                                                           choices = unique(df_apeo$gr_edad), 
+                                                           selected = "Todas las edades")#,
+                                               
+                                               # selectInput("apeo_tipo_ano", "Selecciona una causa:",
+                                               #             choices = unique(df_apeo$tipo),
+                                               #             multiple = T, selected = df_apeo$tipo)
+                                  ),
+                                  mainPanel(
+                                    plotOutput("grafico_apeo_ano"), br(),br(),
+                                    DT::dataTableOutput("tabla_apeo_ano")  # Agrega la tabla aquí
+                                    
+                                  )), 
+                        
+                        tabPanel("Entidad",br(),
+                                 sidebarPanel(width = 3, br(),
+                                              selectInput("apeo_ano_entidad", "Selecciona un año:", 
+                                                          choices = unique(df_apeo$ano),
+                                                          multiple = F,
+                                                          selected = unique(df_apeo$ano)),
+                                              selectInput("apeo_unidad_medica_entidad", "Selecciona una entidad:",
+                                                          choices = unique(df_apeo$unidad_medica),
+                                                          multiple = T,
+                                                          selected = c("Nacional", "Aguascalientes")),
+                                              
+                                              selectInput("apeo_grupo_edad_entidad", "Selecciona un grupo de edad:", 
+                                                          choices = unique(df_apeo$gr_edad), 
+                                                          selected = "Todas las edades"),
+                                              
+                                              selectInput("apeo_tipo_entidad", "Selecciona una causa:",
+                                                          choices = unique(df_apeo$tipo),
+                                                          multiple = T, selected = df_apeo$tipo)
+                                 ),
+                                 mainPanel(
+                                   plotOutput("grafico_apeo_entidad"), br(),br(),
+                                   DT::dataTableOutput("tabla_apeo_entidad")  # Agrega la tabla aquí
+                                   
+                                 ))
+                        )),
+                 
+                 tabPanel("Violencias", br(),
+                          tabsetPanel(
+                            tabPanel("Entidad", br(),
+                          sidebarPanel(width = 3,
+                                       sliderInput("violencia_fecha", "Selecciona un año:", 
+                                                   min = min(df_violencia$fecha), max =max(df_violencia$fecha), 
+                                                   value = 2024, step = 1),
+                                       
+                                       # selectInput("violencia_delito", "Selecciona el o los delitos:", 
+                                       #             choices = unique(df_violencia$delito), multiple = TRUE,
+                                       #             selected = c("Violencia familiar", "Abuso sexual", "Violación")),
+                                       # 
+                                       selectInput("violencia_entidad", "Selecciona una entidad:", 
+                                                   choices = unique(df_violencia$entidad), 
+                                                   multiple = TRUE, 
+                                                   selected = setdiff(unique(df_violencia$entidad), "Nacional"),
+                                                   selectize = TRUE)
+                          ),
+                          mainPanel(width = 9,
+                                    plotOutput("gr_violencia"),
+                                    br(),
+                                    DT::dataTableOutput("tabla_violencia")
+                          )),
+                        tabPanel("Año",
+                                 tabPanel("Año", br(),
+                                          sidebarPanel(width = 3,
+                                                       selectInput("violencia_fecha_ano", "Selecciona un año:", 
+                                                                   choices = sort(unique(na.omit(df_violencia$fecha)), decreasing = TRUE),
+                                                                   multiple = T,
+                                                                   selected = unique(df_violencia$fecha)  # ✅ Año más reciente
+                                                       ),
+                                                       
+                                                       # selectInput("violencia_delito_ano", "Selecciona el o los delitos:", 
+                                                       #             choices = unique(df_violencia$delito), 
+                                                       #             multiple = TRUE,
+                                                       #             selected = unique(df_violencia$delito)),
+                                                       
+                                                       selectInput("violencia_entidad_ano", "Selecciona una entidad:", 
+                                                                   choices = unique(df_violencia$entidad), 
+                                                                   multiple = F, 
+                                                                   selected = c("Nacional"),
+                                                                   selectize = TRUE)
+                                          ),
+                          mainPanel(width = 9,
+                                    plotOutput("gr_violencia_ano"),
+                                    br(),
+                                    DT::dataTableOutput("tabla_violencia_ano")
+                          ))))),
+                 tabPanel("Anticoncepción", br(),
+                          tabsetPanel(
+                            
+                            
+                            # ), 
+                            tabPanel("Anticonceptivos", 
+                                     sidebarPanel(width = 3,
+                                                  selectInput("enadid_año2", "Selecciona un año:", 
+                                                              choices = c(2018, 2024), 
+                                                              selected = 2024, multiple = F),
+                                                  
+                                                  selectInput("enadid_entidad2", "Selecciona una entidad:",
+                                                              choices = sort(unique(enadid$nom_ent)),
+                                                              multiple = TRUE,
+                                                              selected = unique(enadid$nom_ent),
+                                                              selectize = TRUE),
+                                                  selectInput("enadid_edad2", "Selecciona grupos de edad:",
+                                                              choices = sort(unique(enadid$grupo_edad)),
+                                                              multiple = TRUE,
+                                                              selected = unique(enadid$grupo_edad),
+                                                              selectize = TRUE)
+                                     ),
+                                     mainPanel(width = 9,
+                                               plotOutput("gr_uso_anti_primera_vez"),
+                                               br(),
+                                               plotOutput("gr_uso_anticonceptivo"),
+                                               br(), 
+                                               # h3("Tabla de indicador de uso de anticonceptivo en su primera relación sexual"),
+                                               DT::dataTableOutput("tabla_uso_anti_primera_vez"), br(), 
+                                               # h3("Tabla de indicador de uso actual de anticonceptivos"),
+                                               DT::dataTableOutput("tabla_uso_anticonceptivo")
+                                     )
+                            ),
+                            # tabPanel("Indicadores",
+                            #          sidebarPanel(width = 3,
+                            #                       selectInput("enadid_año", "Selecciona un año:", 
+                            #                                   choices = c(2018, 2024), 
+                            #                                   selected = 2024, multiple = F),
+                            #                       
+                            #                       # selectInput("violencia_delito", "Selecciona el o los delitos:", 
+                            #                       #             choices = unique(df_violencia$delito), multiple = TRUE,
+                            #                       #             selected = c("Violencia familiar", "Abuso sexual", "Violación")),
+                            #                       # 
+                            #                       selectInput("enadid_entidad", "Selecciona una entidad:",
+                            #                                   choices = sort(unique(enadid$nom_ent)),
+                            #                                   multiple = TRUE,
+                            #                                   selected = unique(enadid$nom_ent),
+                            #                                   selectize = TRUE),
+                            #                       selectInput("enadid_edad", "Selecciona grupos de edad:",
+                            #                                   choices = sort(unique(enadid$grupo_edad)),
+                            #                                   multiple = TRUE,
+                            #                                   selected = unique(enadid$grupo_edad),
+                            #                                   selectize = TRUE)
+                            #          ),
+                            #          mainPanel(width = 9,
+                            #                    plotOutput("gr_tasa_fecundidad"),
+                            #                    br(),
+                            #                    plotOutput("gr_prom_abortos"),
+                            #                    br(),
+                            #                    # h3("Tabla de indicador de fecundidad de los últimos 6 años"),
+                            #                    DT::dataTableOutput("tabla_fecundidad"), br(), 
+                            #                    # h3("Tabla de indicador de abortos"),
+                            #                    DT::dataTableOutput("tabla_abortos")
+                            #                    # plotOutput("gr_uso_anti_primera_vez"),
+                            #                    # br(),
+                            #                    # plotOutput("gr_uso_anticonceptivo")
+                            #          )), 
+                            tabPanel("Comparación temporal",
+                                     sidebarPanel(width = 3,
+                                                  # selectInput("enadid_año2", "Selecciona un año:",
+                                                  #             choices = c(2018, 2024),
+                                                  #             selected = 2024, multiple = F),
+                                                  
+                                                  selectInput("enadid_entidad3", "Selecciona una entidad:",
+                                                              choices = sort(unique(enadid$nom_ent)),
+                                                              multiple = F,
+                                                              selected = unique(enadid$nom_ent),
+                                                              selectize = TRUE),
+                                                  selectInput("enadid_edad3", "Selecciona grupos de edad:",
+                                                              choices = sort(unique(enadid$grupo_edad)),
+                                                              multiple = TRUE,
+                                                              selected = unique(enadid$grupo_edad),
+                                                              selectize = TRUE)
+                                     ),
+                                     mainPanel(width = 9,
+                                               plotOutput("gr_uso_anti_primera_vez_tiempo"),
+                                               br(),
+                                               plotOutput("gr_uso_anticonceptivo_tiempo"),
+                                               br()#,
+                                               # plotOutput("gr_tasa_fecundidad_tiempo"),
+                                               # br(),
+                                               # plotOutput("gr_prom_abortos_tiempo")
+                                     )
+                            )
+                            
+                            
+                          )
+                          
+                 )
+                 
+                 
+                 
+      ))))
 
 # #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-
 
@@ -677,77 +840,42 @@ server <- function(input, output, session) {
   })
   
   #------------------------------------------------------------------------------
-
-demografia_reactive <- reactive({
-  df_demografia %>%
-    filter(
-      if (is.null(input$demografia_grupo) || input$demografia_grupo == "Todos las edades") TRUE else entidad %in% input$demografia_grupo,
-      entidad %in% input$demografia_entidad,
-      ano >= input$demografia_ano,
-      sexo %in% input$demografia_sexo
-    ) 
-})
-
+  
+  demografia_reactive <- reactive({
+    df_demografia %>%
+      filter(entidad %in% input$demografia_entidad,
+             # grupo_edad %in% input$demografia_grupo_edad,
+             ano >= input$demografia_ano,
+             sexo %in% input$demografia_sexo
+      ) 
+  })
+  
   # Gráfico por entidad
-  output$gr_demografia <- renderPlotly({
+  output$gr_demografia <- renderPlot({
     
-    demografia_reactive() %>% 
-      group_by(entidad) %>% 
-      mutate(total_entidad = sum(poblacion)) %>%  # Sumar población total por entidad
+    demografia_reactive() %>%
       group_by(entidad, sexo) %>% 
-      summarise(
-        poblacion = sum(poblacion), 
-        total_entidad = first(total_entidad), 
-        .groups = 'drop'
-      ) %>% 
-      mutate(
-        porcentaje = (poblacion / total_entidad) * 100,  # Calcular porcentaje dentro de cada entidad
-        porcentaje_texto = paste0(round(porcentaje, 1), "%"),  # Formatear texto del porcentaje
-        tooltip_text = paste0(
-          "<b>Entidad:</b> ", entidad, "<br>",
-          "<b>Sexo:</b> ", sexo, "<br>",
-          "<b>Población:</b> ", scales::comma(abs(poblacion)), "<br>",
-          "<b>Proporción en la entidad:</b> ", porcentaje_texto
-        )) %>% 
-      ggplot(aes(x = reorder(entidad, -poblacion), y = poblacion, fill = sexo, text = tooltip_text)) +
+      summarise(poblacion = sum(poblacion),.groups = 'drop') %>% 
+      group_by(entidad) %>% 
+      mutate(total_entidad = sum(poblacion),
+             porcentaje = poblacion / total_entidad) %>%
+      ungroup() %>% 
+      ggplot(aes(x = reorder(entidad, -total_entidad), y = total_entidad, fill = sexo)) +
       geom_bar(stat = "identity") +
-      labs(
-        x = "", y = "", fill = ""
-      ) +
+      geom_text(aes(label = paste0(round(porcentaje * 100, 1), "%")), 
+                position = position_stack(vjust = 0.5), size = 3, color = "white") +  
+      labs(x = "", y = "", fill = "",
+           title = "Población total por sexo y entidad de residencia habitual",
+           subtitle = paste("Año:", input$demografia_ano),
+           caption = paste0("Fuente: elaboración propia con base en los datos de estimaciones de la población de CONAPO | Ipas Lac",
+                            "\n Fecha de consulta: ", Sys.Date())) +
       scale_y_continuous(labels = scales::comma) +
       theme_minimal() +
-      theme_ipas +
+      theme_ipas+
       theme(
         legend.position = "bottom",
         axis.text.x = element_text(size = 13, color = "black", angle = 90, hjust = 1)
-      ) -> gr_1
-    
-    ggplotly(gr_1, tooltip = "text") %>%  
-      layout(
-        title = list(
-          text = paste0(
-            "<b>Población total por sexo y entidad de residencia habitual</b>",
-            "<br><span style='font-size:14px'>Año: ", input$demografia_ano,
-            " | Grupo de edad: ", input$demografia_grupo_edad, "</span>"
-          ),
-          font = list(family = "Montserrat", size = 18, color = "black"),
-          x = 0
-        ),
-        margin = list(l = 0, r = 0, b = 100, t=60), # Espacio para el caption
-        legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -.6),
-        title_y = 0.2,
-        annotations = list(
-          list(
-            text = "Fuente: elaboración propia con base en los datos de estimaciones de la población de CONAPO | Ipas Lac",
-            xref = "paper", yref = "paper",
-            x = 0, y = -.9, # Posición debajo del gráfico
-            showarrow = FALSE,
-            font = list(family = "Montserrat", size = 10, color = "black"),
-            align = "left"
-          )
-        )
-      )  
-
+      )
   })
   
   output$tabla_demografia <- DT::renderDataTable({
@@ -787,18 +915,18 @@ demografia_reactive <- reactive({
   })
   
   
-# Gráfico por grupo de edad -------------------------------------------------
+  # Gráfico por grupo de edad -------------------------------------------------
   demografia_reactive_edad <- reactive({
     df_demografia %>%
       filter(
         entidad %in% input$demografia_entidad_edad,
         ano >= input$demografia_ano_edad
-        )
+      )
   })
   
-  output$gr_demografia_edad <- renderPlotly({
+  output$gr_demografia_edad <- renderPlot({
     # df_demografia %>% 
-      demografia_reactive_edad() %>%
+    demografia_reactive_edad() %>%
       group_by(grupo_edad) %>% 
       mutate(total_grupo = sum(poblacion)) %>% # Calcular total por grupo de edad
       group_by(sexo, grupo_edad) %>% 
@@ -810,22 +938,23 @@ demografia_reactive <- reactive({
       mutate(
         porcentaje = poblacion / total_grupo * 100,  # Calcular el porcentaje dentro de cada grupo
         poblacion = ifelse(sexo == "Hombres", -poblacion, poblacion),  # Invertir valores para hombres
-        porcentaje_texto = paste0(round(porcentaje, 1), "%"),  # Texto del porcentaje
-        tooltip_text = paste0(
-          "<b>Sexo:</b> ", sexo, "<br>",
-          "<b>Grupo de edad:</b> ", grupo_edad, "<br>",
-          "<b>Población:</b> ", scales::comma(abs(poblacion)), "<br>",
-          "<b>Proporción en el grupo:</b> ", porcentaje_texto)) %>% 
-      ggplot(aes(x = grupo_edad, y = poblacion, fill = sexo, text = tooltip_text)) +
+        porcentaje_texto = paste0(round(porcentaje, 1), "%"),  # Etiqueta en porcentaje
+        label_pos = ifelse(sexo == "Hombres", poblacion - max(abs(poblacion)) * 0.05, poblacion + max(abs(poblacion)) * 0.05) # Ajustar posición
+      ) %>% 
+      ggplot(aes(x = grupo_edad, y = poblacion, fill = sexo)) +
       geom_bar(stat = "identity") +
+      geom_text(aes(y = label_pos, label = porcentaje_texto, hjust = ifelse(sexo == "Hombres", 1.1, -0.1)), 
+                size = 3.5, 
+                color = "black") +
       scale_y_continuous(labels = abs) +
       coord_flip() +
       labs(
-        x = "", y = "", fill = ""
-        # title = "Pirámide poblacional por grupo de edad y sexo",
-        # subtitle = paste("Año:", input$demografia_ano_edad,
-        #                  "\nEntidad:", input$demografia_entidad_edad),
-        # caption = "Fuente: elaboración propia con base en los datos de estimaciones de la población de CONAPO | Ipas Lac"
+        x = "", y = "", fill = "",
+        title = "Pirámide poblacional por grupo de edad y sexo",
+        subtitle = paste("Año:", input$demografia_ano_edad,
+                         "\nEntidad:", input$demografia_entidad_edad),
+        caption = paste0("Fuente: elaboración propia con base en los datos de estimaciones de la población de CONAPO | Ipas Lac",
+                                  "\n Fecha de consulta: ", Sys.Date())
       ) +
       scale_y_continuous(labels = scales::comma) +
       theme_minimal() +
@@ -833,44 +962,115 @@ demografia_reactive <- reactive({
       theme(
         legend.position = "bottom",
         axis.text.x = element_text(size = 10, color = "black", angle = 0, hjust = 1)
-      ) -> gr_2
+      )
     
-    ggplotly(gr_2, tooltip = "text") %>%  
-      layout(
-        title = list(
-          text = paste0(
-            "<b>Pirámide poblacional por grupo de edad y sexo</b>",
-            "<br><span style='font-size:14px'>Año: ", input$demografia_ano_edad,
-            " | Entidad: ", input$demografia_entidad_edad, "</span>"
-          ),
-          font = list(family = "Montserrat", size = 18, color = "black"),
-          x = 0
+  })
+  
+  output$tabla_demografia_edad <- DT::renderDataTable({
+    demografia_reactive_edad() %>% 
+      # df_demografia %>% 
+      group_by(grupo_edad) %>% 
+      mutate(total_grupo = sum(poblacion)) %>% # Calcular total por grupo de edad
+      group_by(sexo, grupo_edad) %>% 
+      summarise(poblacion = sum(poblacion), total_grupo = first(total_grupo), .groups = 'drop') %>% 
+      mutate(porcentaje = poblacion / total_grupo * 100) %>% # Calcular porcentaje
+      pivot_wider(names_from = "sexo", values_from = c("poblacion", "porcentaje")) %>% 
+      datatable(
+        extensions = 'Buttons',
+        options = list(
+          dom = 'Bfrtip',
+          buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+          pageLength = 5,
+          autoWidth = TRUE
         ),
-        margin = list(l = 0, r = 0, b = 60, t=30), # Espacio para el caption
-        legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -0.02),
-        title_y = 0.2,
-        annotations = list(
-          list(
-            text = "Fuente: elaboración propia con base en los datos de estimaciones de la población de CONAPO | Ipas Lac",
-            xref = "paper", yref = "paper",
-            x = 0, y = -0.2, # Posición debajo del gráfico
-            showarrow = FALSE,
-            font = list(family = "Montserrat", size = 10, color = "black"),
-            align = "left"
-          )
-        )
+        rownames = FALSE,
+        colnames = c("Grupo de edad","Total", "Hombres", "Mujeres", "% Hombres", "% Mujeres")
+      ) %>% 
+      formatRound(columns = c(2, 3, 4), digits = 0) %>% # Formato sin decimales en población
+      formatRound(columns = c(5, 6), digits = 1)  # Formato con 1 decimal en porcentaje
+  })
+  
+# Demografía año ---------------------------------------------------------------  
+  
+  demografia_reactive_ano <- reactive({
+    df_demografia %>%
+      filter(
+        # if (is.null(input$demografia_grupo_ano) || input$demografia_grupo_ano == "Todos las edades") TRUE else entidad %in% input$demografia_grupo_ano,
+        entidad %in% input$demografia_entidad_ano,
+        ano %in% input$demografia_ano_ano
+        # sexo %in% input$demografia_sexo_ano
       ) 
   })
   
- output$tabla_demografia_edad <- DT::renderDataTable({
-  demografia_reactive_edad() %>% 
-  # df_demografia %>% 
-    group_by(grupo_edad) %>% 
-    mutate(total_grupo = sum(poblacion)) %>% # Calcular total por grupo de edad
-    group_by(sexo, grupo_edad) %>% 
-    summarise(poblacion = sum(poblacion), total_grupo = first(total_grupo), .groups = 'drop') %>% 
-    mutate(porcentaje = poblacion / total_grupo * 100) %>% # Calcular porcentaje
-    pivot_wider(names_from = "sexo", values_from = c("poblacion", "porcentaje")) %>% 
+  # Gráfico por entidad y año
+  output$gr_demografia_ano <- renderPlot({
+    req(demografia_reactive_ano())  # Asegura que los datos están disponibles
+    
+    demografia_reactive_ano() %>% 
+      group_by(ano, entidad, sexo) %>% 
+      summarise(poblacion = sum(poblacion), .groups = 'drop') %>% 
+      group_by(ano) %>% 
+      mutate(
+        total_poblacion_ano = sum(poblacion),   # Suma total de población por año
+        porcentaje = (poblacion / total_poblacion_ano) * 100,  # Calcula el porcentaje
+        porcentaje_texto = paste0(round(porcentaje, 1), "%"),  # Etiqueta en porcentaje
+        etiqueta_texto = paste0(scales::comma(poblacion), "\n (", porcentaje_texto, ")") # Total + porcentaje
+      ) %>% 
+      ungroup() %>% 
+      ggplot(aes(x = as.factor(ano), y = poblacion, fill = sexo)) +
+      geom_bar(stat = "identity") +
+      
+      # Etiquetas dentro de cada barra con el total y porcentaje
+      geom_text(aes(label = etiqueta_texto), 
+                position = position_stack(vjust = 0.5), 
+                size =4, 
+                color = "white") +
+      
+      # Agregar total en la parte superior de cada barra de año
+      geom_text(aes(y = total_poblacion_ano, label = scales::comma(total_poblacion_ano)), 
+                vjust = -0.5, 
+                size = 4, 
+                fontface = "bold") +
+      
+      labs(
+        x = "", y = "", fill = "",
+        title = "Total de la población por año y sexo",
+        subtitle = paste("Año:", input$demografia_ano_edad,
+                         "\nEntidad:", input$demografia_entidad_edad),
+        caption = paste0("Fuente: elaboración propia con base en los datos de estimaciones de la población de CONAPO | Ipas Lac",
+                         "\n Fecha de consulta: ", Sys.Date())
+      ) +
+      scale_y_continuous(labels = scales::comma) + # Formato con comas para miles
+      scale_x_discrete(expand = expansion(mult = c(0, 0.05))) +  # Eliminar espacio extra en X
+      theme_minimal() +
+      theme_ipas +
+      theme(
+        legend.position = "bottom",
+        axis.text.x = element_text(size = 13, color = "black", angle=0, hjust = 0.5)
+      )
+  })
+  
+  
+  
+  output$tabla_demografia_ano <- DT::renderDataTable({
+
+ demografia_reactive_ano() %>% 
+      # df_demografia %>% 
+      group_by(ano, entidad, sexo) %>% 
+      summarise(poblacion = sum(poblacion), .groups = 'drop') %>% 
+      group_by(ano) %>% 
+      mutate(
+        total_poblacion_ano = sum(poblacion),   # Suma total de población por año
+        porcentaje = (poblacion / total_poblacion_ano) * 100,  # Calcula el porcentaje
+        porcentaje = round(porcentaje, 2)  # Redondear a 2 decimales
+      ) %>% 
+      ungroup() %>% 
+      pivot_wider(
+        names_from = "sexo",
+        values_from = c("poblacion", "porcentaje")
+      ) %>%
+      arrange(desc(poblacion_Hombres + poblacion_Mujeres)) %>%   # Ordenar por población total
+      select(-entidad) %>% 
     datatable(
       extensions = 'Buttons',
       options = list(
@@ -880,71 +1080,54 @@ demografia_reactive <- reactive({
         autoWidth = TRUE
       ),
       rownames = FALSE,
-      colnames = c("Grupo de edad","Total", "Hombres", "Mujeres", "% Hombres", "% Mujeres")
-    ) %>% 
-    formatRound(columns = c(2, 3, 4), digits = 0) %>% # Formato sin decimales en población
-    formatRound(columns = c(5, 6), digits = 1)  # Formato con 1 decimal en porcentaje
-})
+      colnames = c("Año", "Total","Hombres", "Mujeres", "% Hombres", "% Mujeres")
+    ) %>%
+      formatRound(columns = c(2, 3, 4), digits = 0) %>%  # Población sin decimales
+      formatRound(columns = c(5, 6), digits = 1)  # Porcentaje con 1 decimal
+  })
 
-# -------------------------------------------------------------------------
-
+  
+#Egresos -------------------------------------------------------------------------
+  
   egresos_reactive <- reactive({
     df_egresos_obs %>% 
       filter(gr_edad == input$egresos_grupo_edad,
-             tipo %in% input$egresos_tipo,
              unidad_medica %in% input$egresos_unidad_medica,
              ano == input$egresos_ano)
     
   })
-
   
-  output$grafico_egresos <- renderPlotly({
-    df_treemap <- egresos_reactive() %>%
+  output$grafico_egresos <- renderPlot({
+
+    egresos_reactive() %>%
       group_by(ano, unidad_medica, gr_edad, tipo) %>% 
       summarise(total = sum(total), .groups = "drop") %>% 
-      mutate(porcentaje = total / sum(total),
-             porcentaje = scales::percent(porcentaje, accuracy = 0.1))
-    
-    # Lista de treemaps por unidad médica
-    treemap_list <- lapply(unique(df_treemap$unidad_medica), function(um) {
-      df_um <- df_treemap %>% filter(unidad_medica == um)
-      
-      plot_ly(
-        data = df_um,
-        type = "treemap",
-        labels = ~paste0("<b>", tipo, "</b><br>", porcentaje),  # Etiquetas en negrita
-        parents = NA,  # Elimina niveles innecesarios
-        values = ~total,
-        textinfo = "label",  # Solo muestra la etiqueta
-        hoverinfo = "text",
-        text = ~paste0("<b>Tipo:</b> ", tipo, "<br><b>Porcentaje:</b> ", porcentaje), # Hover text con negritas
-        marker = list(colors = RColorBrewer::brewer.pal(9, "Set3")),
-        textfont = list(family = "Montserrat", size = 14, color = "black") # Fuente Montserrat
-      ) %>%
-        layout(title = list(
-          text = paste("<b>Unidad Médica:</b> ", um),  # Título de cada unidad médica en negritas
-          font = list(family = "Montserrat", size = 16, color = "black"),
-          x = 0  # Alineación a la izquierda
-        ))
-    })
-    
-    subplot(treemap_list, nrows = ceiling(length(treemap_list) / 3), shareX = TRUE, shareY = TRUE) %>%
-      layout(
-        title = list(
-          text = paste("<b>Egresos Hospitalarios</b>",
-                       "<br><b>Entidad:</b> ", input$egresos_unidad_medica,
-                       "<br><b>Año:</b> ", input$egresos_ano), # Título principal en negritas
-          font = list(family = "Montserrat", size = 18, color = "black"),
-          x = 0  # Alineación a la izquierda
-        ),
-        font = list(family = "Montserrat"),  # Aplica la fuente a todo el gráfico
-        margin = list(l = 0, r = 00, t = 60, b = 0)
-      )
+      group_by(unidad_medica) %>% 
+      mutate(
+        porcentaje = total / sum(total) * 100,
+        etiqueta = paste0(tipo, "\n", scales::comma(total), " (", round(porcentaje, 1), "%)")
+      ) %>% 
+      ungroup() %>% 
+    ggplot(aes(area = total, fill = tipo, label = etiqueta, subgroup = unidad_medica)) +
+      geom_treemap() +
+      geom_treemap_text(fontface = "bold", color = "white", place = "left", grow = F, fontface = "plain") +  # Etiquetas en el centro
+      # scale_fill_brewer(palette = "Set3") +  # Paleta de colores atractiva
+      labs(
+        title = "Egresos hospitalarios por unidad médica, grupo de edad y tipo",
+        subtitle = paste("Año:", input$egresos_ano),  # Año dinámico
+        fill = "",
+        caption = paste0("\nFuente: Elaboración propia con datos de la Secretaría de Salud | Ipas Lac",
+                         "\nFecha de consulta: ", Sys.Date())) +
+      theme_minimal() +
+      theme_ipas +
+      theme(
+        legend.position = "bottom")
   })
   
   
   
-
+  
+  
   
   output$tabla_egresos <- DT::renderDataTable({
     egresos_reactive() %>% 
@@ -965,22 +1148,169 @@ demografia_reactive <- reactive({
         colnames = c("Unidad Médica", "Tipo", "Total", "Porcentaje") 
       ) %>%
       formatRound(columns = "total", digits = 0) %>%  # Formato sin decimales en total
-      formatPercentage(columns = "porcentaje", digits = 1)  # Formato de porcentaje
+      formatRound(columns = "porcentaje", digits = 1)  # Formato de porcentaje
   })
   
   
-# Muertes maternas ------------------------------------------------------------  
+  
+  #Egresos año-------------------------------------------------------------------------
+  
+  egresos_reactive_ano <- reactive({
+    df_egresos_obs %>% 
+      filter(gr_edad == input$egresos_grupo_edad_ano,
+             unidad_medica %in% input$egresos_unidad_medica_ano,
+             ano %in% input$egresos_ano_ano)
+    
+  })
+  
+  output$grafico_egresos_ano <- renderPlot({
+    egresos_reactive_ano() %>%
+      group_by(ano, tipo) %>%  # Agrupamos por año y tipo de egreso
+      summarise(total = sum(total), .groups = "drop") %>% 
+      group_by(ano) %>% 
+      mutate(
+        total_ano = sum(total),  # Total de egresos en cada año
+        porcentaje = (total / total_ano) * 100,  # Calculamos el porcentaje
+        porcentaje_text = paste0(round(porcentaje, 1), "%")  # Formato de porcentaje
+      ) %>% 
+      ungroup() %>% 
+      ggplot(aes(x = as.factor(ano), y = porcentaje, fill = tipo)) +
+      geom_col() + 
+      geom_text(aes(label = porcentaje_text), 
+                position = position_stack(vjust = 0.5),  # Centra los textos en cada barra apilada
+                size = 4, color="white",
+                fontface = "plain")+
+      labs(
+        title = "Egresos hospitalarios por año y tipo",
+        subtitle = paste("Año:", input$egresos_ano_ano),  # Año dinámico
+        fill = "", x="", y="",
+        caption = paste0("\nFuente: Elaboración propia con datos de la Secretaría de Salud | Ipas Lac",
+                         "\nFecha de consulta: ", Sys.Date())) +
+      scale_y_continuous(labels = scales::percent_format(scale = 1)) +  # Eje Y en porcentaje
+      theme_minimal() +
+      theme_ipas +
+      theme(
+        legend.position = "bottom",
+        legend.text = element_text(size = 8),  # Reducir tamaño de la leyenda
+        axis.text.x = element_text(size = 13, color = "black", angle = 0, hjust = 1)
+      ) 
+  })
+  
+  
+  
+  output$tabla_egresos_ano <- DT::renderDataTable({
+    egresos_reactive_ano() %>%
+      group_by(ano, tipo) %>%  # Agrupamos por año y tipo de egreso
+      summarise(total = sum(total), .groups = "drop") %>% 
+      group_by(ano) %>% 
+      mutate(
+        total_ano = sum(total),  # Total de egresos en cada año
+        porcentaje = (total / total_ano) * 100,  # Calculamos el porcentaje
+        porcentaje_text = paste0(round(porcentaje, 1), "%")  # Formato de porcentaje
+      ) %>% 
+      select(ano, tipo, total, porcentaje) %>% 
+      datatable(
+        extensions = 'Buttons',
+        options = list(
+          dom = 'Bfrtip',
+          buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+          pageLength = 8,
+          autoWidth = TRUE
+        ),
+        rownames = FALSE,
+        colnames = c("Año", "Tipo", "Total", "Porcentaje") 
+      ) %>%
+      formatRound(columns = "total", digits = 0) %>%  # Formato sin decimales en total
+      formatRound(columns = "porcentaje", digits = 1)  # Formato de porcentaje
+  })
+  
+  
+  #Egresos entidad-------------------------------------------------------------------------
+  
+  egresos_reactive_entidad <- reactive({
+    df_egresos_obs %>% 
+      filter(gr_edad == input$egresos_grupo_edad_entidad,
+             unidad_medica %in% input$egresos_unidad_medica_entidad,
+             ano %in% input$egresos_ano_entidad)
+    
+  })
+  
+  output$grafico_egresos_entidad <- renderPlot({
+    egresos_reactive_entidad() %>%
+      group_by(unidad_medica, ano, tipo) %>%  # Agrupamos por entidad y tipo de egreso
+      summarise(total = sum(total), .groups = "drop") %>% 
+      group_by(unidad_medica) %>%  # Calculamos el total por entidad
+      mutate(
+        total_entidad = sum(total),  # Total de egresos en cada unidad médica
+        porcentaje = (total / total_entidad) * 100,  # Calculamos el porcentaje
+        porcentaje_text = paste0(round(porcentaje, 1), "%")  # Formato de porcentaje
+      ) %>% 
+      ungroup() %>%
+      ggplot(aes(x = as.factor(unidad_medica), y = porcentaje, fill = tipo)) +
+      geom_bar(stat = "identity", position = "stack") +
+      geom_text(aes(label = porcentaje_text), 
+                position = position_stack(vjust = 0.5),  # Centra los textos en cada barra apilada
+                size = 4, color="white",
+                fontface = "plain")+
+      labs(
+        title = "Egresos hospitalarios por entdad y tipo",
+        subtitle = paste("Año:", input$egresos_ano_entidad),  # Año dinámico
+        fill = "", x="", y="",
+        caption = paste0("\nFuente: Elaboración propia con datos de la Secretaría de Salud | Ipas Lac",
+                         "\nFecha de consulta: ", Sys.Date())) +
+      scale_y_continuous(labels = scales::percent_format(scale = 1)) +  # Eje Y en porcentaje
+      theme_minimal() +
+      theme_ipas +
+      theme(
+        legend.position = "bottom",
+        legend.text = element_text(size = 8),  # Reducir tamaño de la leyenda
+        axis.text.x = element_text(size = 13, color = "black", angle = 0, hjust = 1)
+      )
+    
+  })
+  
+  output$tabla_egresos_entidad <- DT::renderDataTable({
+    egresos_reactive_entidad() %>%
+      group_by(unidad_medica, ano, tipo) %>%  # Agrupamos por entidad y tipo de egreso
+      summarise(total = sum(total), .groups = "drop") %>% 
+      group_by(unidad_medica) %>%  # Calculamos el total por entidad
+      mutate(
+        total_entidad = sum(total),  # Total de egresos en cada unidad médica
+        porcentaje = (total / total_entidad) * 100,  # Calculamos el porcentaje
+        porcentaje_text = paste0(round(porcentaje, 1), "%")  # Formato de porcentaje
+      ) %>% 
+      ungroup() %>%
+      select(unidad_medica, ano, tipo, total, porcentaje) %>% 
+      datatable(
+        extensions = 'Buttons',
+        options = list(
+          dom = 'Bfrtip',
+          buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+          pageLength = 8,
+          autoWidth = TRUE
+        ),
+        rownames = FALSE,
+        colnames = c("Entidad", "Año", "Tipo", "Total", "Porcentaje") 
+      ) %>%
+      formatRound(columns = "total", digits = 0) %>%  # Formato sin decimales en total
+      formatRound(columns = "porcentaje", digits = 1)  # Formato de porcentaje
+  })
+  
+  
+  
+  
+  # Muertes maternas ------------------------------------------------------------  
   
   muertes_reactive <- reactive({
     df_muertes %>% 
       filter(ano == input$muertes_ano,
              entidad %in% input$muertes_entidad,
-             if (is.null(input$muertes_edad) || input$muertes_edad == "Todas las edades") TRUE else gr_edad %in% input$muertes_edad,
+             # if (is.null(input$muertes_edad) || input$muertes_edad == "Todas las edades") TRUE else gr_edad %in% input$muertes_edad,
       )
     
   })
   
-  output$gr_muertes <- renderPlotly({
+  output$gr_muertes <- renderPlot({
     muertes_reactive() %>%
       group_by(ano, entidad, gr_edad) %>% 
       summarise(total = sum(total), .groups = 'drop') %>% 
@@ -995,27 +1325,21 @@ demografia_reactive <- reactive({
       ) %>%
       ungroup() %>%
       pivot_longer(cols = c(`Todas Edades`, `Menores 20`), names_to = "gr_edad", values_to = "total") %>%
-      mutate(tooltip_text = paste0(
-        "<b>Entidad:</b> ", entidad, "<br>",
-        "<b>Grupo de edad:</b> ", gr_edad, "<br>",
-        "<b>Total:</b> ", scales::comma(abs(total)), "<br>",
-        "<b>Porcentaje Menores de 20:</b> ", round(porcentaje, 1), "%<br>"
-      )) %>%
       ggplot(aes(
         x = reorder(entidad, -total),
         y = total,
         fill = gr_edad,
         color = gr_edad,
-        group = gr_edad,
-        text = tooltip_text
+        group = gr_edad
       )) +
-      geom_line() +
-      geom_point() +
+      geom_line(linewidth = 1.5) +
+      geom_point(size = 2.5) +
       labs(
-        x = "", y = "", fill = " ", group="", color="",
-        title = paste0("Muertes maternas por entidad y grupo de edad, ", input$muertes_ano),
-        subtitle = "Comparación de defunciones maternas en diferentes grupos de edad",
-        caption = "Fuente: elaboración propia con base en los datos de la Secretaría de Salud | Ipas Lac"
+        x = "", y = "", fill = "", group="", color="",
+        title = paste0("Muertes maternas por entidad y grupo de edad, "),
+        subtitle = paste0("Año: ", input$muertes_ano),
+        caption = paste0("Fuente: elaboración propia con base en los datos de la Secretaría de Salud | Ipas Lac",
+                         "\nFecha de consulta: ", Sys.Date())
       ) +
       scale_y_continuous(labels = scales::comma) +
       theme_minimal() +
@@ -1023,31 +1347,6 @@ demografia_reactive <- reactive({
       theme(
         legend.position = "bottom",
         axis.text.x = element_text(size = 13, color = "black", angle = 90, hjust = 1)
-      ) -> gr_4
-    
-    ggplotly(gr_4, tooltip = "text") %>%  
-      layout(
-        title = list(
-          text = paste0(
-            "<b>Muertes maternas por entidad y grupo de edad</b>",
-            "<br><span style='font-size:14px'>Año: ", input$muertes_ano, "</span>"
-          ),
-          font = list(family = "Montserrat", size = 18, color = "black"),
-          x = 0
-        ),
-        margin = list(l = 0, r = 0, b = 10, t = 50),
-        legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -1.1),
-        title_y = 0.9,
-        annotations = list(
-          list(
-            text = "Fuente: elaboración propia con base en los datos de la Secretaría de Salud | Ipas Lac",
-            xref = "paper", yref = "paper",
-            x = 0, y = -1.5,
-            showarrow = FALSE,
-            font = list(family = "Montserrat", size = 10, color = "black"),
-            align = "left"
-          )
-        )
       ) 
   })
   
@@ -1087,73 +1386,36 @@ demografia_reactive <- reactive({
   
   
   
-# APEO  ------------------------------------------------------------------------
+# APEO tipo  ------------------------------------------------------------------------
   
   apeo_reactive <- reactive({
     df_apeo %>% 
       filter(gr_edad == input$apeo_grupo_edad,
-             tipo %in% input$apeo_tipo,
+             # tipo %in% input$apeo_tipo,
              unidad_medica %in% input$apeo_unidad_medica,
              ano == input$apeo_ano)
   })
   
-  # Generar el gráfico
-  output$grafico_apeo <- renderPlotly({
-    df_treemap <- apeo_reactive() %>%
+  output$grafico_apeo <- renderPlot({
+   apeo_reactive() %>%
       group_by(ano, unidad_medica, gr_edad, tipo) %>% 
       summarise(total = sum(total), .groups = "drop") %>% 
       mutate(
-        porcentaje = total / sum(total),
-        porcentaje = scales::percent(porcentaje, accuracy = 0.1)
-      )
-    
-    # Verificar si df_treemap está vacío
-    if (nrow(df_treemap) == 0) {
-      return(NULL)  # Evita que el gráfico se genere si no hay datos
-    }
-    
-    # Crear lista de treemaps por unidad médica
-    treemap_list <- lapply(unique(df_treemap$unidad_medica), function(um) {
-      df_um <- df_treemap %>% filter(unidad_medica == um)
-      
-      plot_ly(
-        data = df_um,
-        type = "treemap",
-        labels = ~paste0("<b>", tipo, "</b><br>", porcentaje),
-        parents = NA,
-        values = ~total,
-        textinfo = "label",
-        hoverinfo = "text",
-        text = ~paste0("<b>Tipo:</b> ", tipo, "<br><b>Porcentaje:</b> ", porcentaje),
-        marker = list(colors = RColorBrewer::brewer.pal(9, "Set3")),
-        textfont = list(family = "Montserrat", size = 14, color = "black")
-      ) %>%
-        layout(title = list(
-          text = paste("<b>Unidad Médica:</b> ", um),
-          font = list(family = "Montserrat", size = 16, color = "black"),
-          x = 0
-        ))
-    })
-    
-    # Asegurar que treemap_list no esté vacío
-    if (length(treemap_list) == 0) {
-      return(NULL)  # Evita que `subplot()` falle
-    }
-    
-    # Unir los gráficos en una sola vista
-    subplot(treemap_list, nrows = max(1, ceiling(length(treemap_list) / 3)), shareX = TRUE, shareY = TRUE) %>%
-      layout(
-        title = list(
-          text = paste("<b>APEOS por entidad y año</b>",
-                       "<br><b>Año:</b> ", input$apeo_ano,
-                       "<br><b>Entidad:</b> ", input$apeo_unidad_medica),
-          font = list(family = "Montserrat", size = 18, color = "black"),
-          x = 0
-        ),
-        font = list(family = "Montserrat"),
-        margin = list(l = 0, r = 0, t = 80, b = 30),
-        legend = list(orientation = "h", x = 0.5, y = -0.2, xanchor = "center")
-      )
+        porcentaje = total / sum(total)  # Mantiene como numérico para cálculo
+      ) %>% 
+      ggplot(aes(area = total, fill = tipo, label = paste0(tipo, "\n", scales::percent(porcentaje, accuracy = 0.1)))) +
+      geom_treemap() +
+      geom_treemap_text(fontface = "plain", colour = "white", place = "left", grow = F) +
+      # scale_fill_brewer(palette = "Set3") +  # Mejora la paleta de colores
+      facet_wrap(~ unidad_medica) +  # Faceta por unidad médica
+      labs(
+        title = "Distribución de APEO por tipo",
+        subtitle = paste("Año:", input$apeo_ano, "| Grupo de edad:", input$apeo_grupo_edad),
+        fill = "", x="", y="",
+        caption = paste0("Fuente: Secretaría de Salud | Ipas Lac \nFecha de consulta: ", Sys.Date())
+      ) +
+      theme_minimal() +
+      theme_ipas
   })
   
   
@@ -1176,70 +1438,188 @@ demografia_reactive <- reactive({
         colnames = c("Unidad Médica", "Tipo", "Total", "Porcentaje:") 
       ) %>%
       formatRound(columns = "total", digits = 0) %>%  # Formato sin decimales en total
-      formatPercentage(columns = "porcentaje", digits = 1)  # Formato de porcentaje
+      formatRound(columns = "porcentaje", digits = 1)  # Formato de porcentaje
+  })
+  
+
+  
+  # APEO año  ------------------------------------------------------------------------
+  
+  apeo_reactive_ano <- reactive({
+    df_apeo %>% 
+      filter(gr_edad == input$apeo_grupo_edad_ano,
+             # tipo %in% input$apeo_tipo_ano,
+             unidad_medica %in% input$apeo_unidad_medica_ano,
+             ano %in% input$apeo_ano_ano)
+  })
+  
+  # Generar el gráfico
+  output$grafico_apeo_ano <- renderPlot({
+    apeo_reactive_ano() %>%
+      group_by(ano, tipo) %>%  
+      summarise(total = sum(total), .groups = "drop") %>% 
+      group_by(ano) %>% 
+      mutate(
+        total_ano = sum(total),
+        porcentaje = (total / total_ano) * 100,  
+        porcentaje_text = paste0(round(porcentaje, 1), "%")  # Formatear como porcentaje
+      ) %>% 
+      ungroup() %>% 
+      ggplot(aes(x = as.factor(ano), y = total, fill = tipo, group = tipo)) +
+      geom_col(stat="identity") +  
+      geom_text(aes(label = porcentaje_text), 
+                position = position_stack(vjust = 0.5),  # Centra los textos en cada barra apilada
+                size = 4, color="white",
+                fontface = "plain")+
+      labs(
+        title = "Distribución de APEO por año",
+        subtitle = paste("Año:", input$apeo_ano_ano, "\nGrupo de edad:", input$apeo_grupo_edad_ano,
+                         "\nEntidad:", input$apeo_unidad_medica_ano),
+        fill = "", x="", y="",
+        caption = paste0("Fuente: Secretaría de Salud | Ipas Lac \nFecha de consulta: ", Sys.Date())
+      ) +
+      scale_y_continuous(labels = scales::percent_format(scale = 1)) +  
+      theme_minimal() +
+      theme_ipas +
+      theme(
+        legend.position = "bottom",
+        legend.text = element_text(size = 8), 
+        axis.text.x = element_text(size = 13, color = "black", angle = 0, hjust = 0.5)
+      ) 
   })
   
   
+  output$tabla_apeo_ano <- DT::renderDataTable({
+    apeo_reactive_ano() %>% 
+      group_by(ano, tipo) %>%  
+      summarise(total = sum(total), .groups = "drop") %>% 
+      group_by(ano) %>% 
+      mutate(
+        total_ano = sum(total),
+        porcentaje = (total / total_ano) * 100) %>% 
+      datatable(
+        extensions = 'Buttons',
+        options = list(
+          dom = 'Bfrtip',
+          buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+          pageLength = 10,
+          autoWidth = TRUE
+        ),
+        rownames = FALSE,
+        colnames = c("Año","Tipo", "Total","Total año", "Porcentaje:")
+      ) %>%
+      formatRound(columns = "total", digits = 0) %>%  # Formato sin decimales en total
+      formatRound(columns = "porcentaje", digits = 1)  # Formato de porcentaje
+  })
+  
+  
+  
+  # APEO entidad  ------------------------------------------------------------------------
+  
+  apeo_reactive_entidad <- reactive({
+    df_apeo %>%
+      filter(gr_edad == input$apeo_grupo_edad_entidad,
+             # tipo %in% input$apeo_tipo,
+             unidad_medica %in% input$apeo_unidad_medica_entidad,
+             ano %in% input$apeo_ano_entidad)
+  })
+
+  # Generar el gráfico
+  output$grafico_apeo_entidad <- renderPlot({
+    apeo_reactive_entidad() %>%
+      group_by(unidad_medica, ano, tipo) %>%
+      summarise(total = sum(total), .groups = "drop") %>%
+      group_by(unidad_medica) %>%  
+      mutate(
+        total_entidad = sum(total),  
+        porcentaje = (total / total_entidad) * 100,  
+        porcentaje_text = paste0(round(porcentaje, 1), "%")  
+      ) %>%
+      ungroup() %>%
+      
+      ggplot(aes(x = reorder(unidad_medica, -total_entidad), y = porcentaje, fill = tipo)) +
+      geom_col(stat = "identity") +
+      geom_text(aes(label = porcentaje_text), 
+               position = position_stack(vjust = 0.5),  # Centra los textos en cada barra apilada
+               size = 4, color="white",
+               fontface = "plain")+
+      labs(
+        title = "Distribución de APEO entidad y por año",
+        subtitle = paste("Año:", input$apeo_ano_entidad, "\nGrupo de edad:", input$apeo_grupo_edad_entidad),
+        fill = "", x="", y="",
+        caption = paste0("Fuente: Secretaría de Salud | Ipas Lac \nFecha de consulta: ", Sys.Date())
+      ) +
+      scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+      theme_minimal() +
+      theme_ipas +
+      theme(
+        legend.position = "bottom",
+        legend.text = element_text(size = 8),
+        axis.text.x = element_text(size = 13, color = "black", angle = 0, hjust = 0.5)
+      )
+  })
+
+
+  # Tabla de datos asegurando que cada entidad sume 100%
+  output$tabla_apeo_entidad <- DT::renderDataTable({
+    apeo_reactive_entidad() %>%
+      group_by(unidad_medica, ano, tipo) %>%
+      summarise(total = sum(total), .groups = "drop") %>%
+      group_by(unidad_medica) %>%  # ✅ Normalizar dentro de cada entidad
+      mutate(
+        total_entidad = sum(total),
+        porcentaje = (total / total_entidad) * 100
+      ) %>%
+      datatable(
+        extensions = 'Buttons',
+        options = list(
+          dom = 'Bfrtip',
+          buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+          pageLength = 10,
+          autoWidth = TRUE
+        ),
+        rownames = FALSE,
+        colnames = c("Entidad", "Año", "Tipo", "Total", "Total en entidad", "Porcentaje (%)")
+      ) %>%
+      formatRound(columns = "total", digits = 0) %>%  # ✅ Formato sin decimales en total
+      formatRound(columns = "porcentaje", digits = 1)  # ✅ Formato de porcentaje
+  })
+
+
 # Nacimientos--------------------------------------------------------------------
   
   nacimiento_reactive <- reactive({
     df_nacimiento %>% 
       filter(ano == input$nacimiento_ano,
-             entidad %in% input$nacimiento_entidad,
-             if (is.null(input$nacimiento_entidad) || input$nacimiento_entidad == "Nacional") TRUE else entidad %in% input$nacimiento_entidad,
+             entidad %in% input$nacimiento_entidad
       )
     
   })
   
-  output$gr_nacimiento <- renderPlotly({
+  output$gr_nacimiento <- renderPlot({
     nacimiento_reactive() %>%
-      mutate(tooltip_text = paste0(
-        "<b>Año:</b> ", ano, "<br>",
-        "<b>Entidad:</b> ", entidad, "<br>",
-        "<b>Total:</b> ", scales::comma(abs(total)), "<br>")) %>%
       ggplot(aes(
         x = reorder(entidad, -total),
         y = total,
-        fill = total,
-        text = tooltip_text
-      )) +
+        fill = total)) +
       geom_col()+
+      geom_text(aes(label = scales::comma(total)), angle=90 , 
+                hjust = -0.2,  
+                size = 4,  
+                color = "black") +
       labs(
         x = "", y = "", fill = " ",
-        title = paste0("Total de nacimientos por entidad y año, ", input$nacimiento_ano),
-        caption = "Fuente: elaboración propia con base en los datos de la Secretaría de Salud | Ipas Lac"
-      ) +
+        title = paste0("Total de nacimientos por entidad y año"),
+        subtitle = paste0("Año: ", input$nacimiento_ano),
+        caption = paste0("Fuente: elaboración propia con base en los datos de la Secretaría de Salud | Ipas Lac",
+                         " ", Sys.Date())) +
       scale_y_continuous(labels = scales::comma) +
+      guides(fill = guide_legend(override.aes = list(size = 10))) + 
       theme_minimal() +
       theme_ipas +
       theme(
         legend.position = "bottom",
         axis.text.x = element_text(size = 13, color = "black", angle = 90, hjust = 1)
-      ) -> gr_7
-    
-    ggplotly(gr_7, tooltip = "text") %>%  
-      layout(
-        title = list(
-          text = paste0(
-            "<b>Total de nacimientos por entidad y año en menores de 20 años</b>",
-            "<br><span style='font-size:14px'>Año: ", input$nacimiento_ano, "</span>"
-          ),
-          font = list(family = "Montserrat", size = 18, color = "black"),
-          x = 0
-        ),
-        margin = list(l = 0, r = 0, b = 10, t = 50),
-        legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -1.1),
-        title_y = 0.9,
-        annotations = list(
-          list(
-            text = "Fuente: elaboración propia con base en los datos de la Secretaría de Salud | Ipas Lac",
-            xref = "paper", yref = "paper",
-            x = 0, y = -1.1,
-            showarrow = FALSE,
-            font = list(family = "Montserrat", size = 10, color = "black"),
-            align = "left"
-          )
-        )
       ) 
   })
   
@@ -1261,84 +1641,53 @@ demografia_reactive <- reactive({
           "Total"
         )
       ) %>%
-      # formatRound(columns = c(3,4), digits = 0) %>%
       formatRound(columns = c(3), digits = 0)  
   })
   
   
-# Violencia --------------------------------------------------------------------
+  # Nacimientos años ----------------------------------------------------------
   
-  violencia_reactive <- reactive({
-    df_violencia %>% 
-      filter(
-        fecha %in% input$violencia_fecha,
-        delito %in% input$violencia_delito,
-        entidad %in% input$violencia_entidad
+  nacimiento_reactive_ano <- reactive({
+    df_nacimiento %>% 
+      filter(ano%in%input$nacimiento_ano_ano,
+             entidad%in%input$nacimiento_entidad_ano 
       )
   })
   
-  output$gr_violencia <- renderPlotly({
-    violencia_reactive() %>%
-      group_by(fecha, entidad, delito) %>% 
-      summarise(total = sum(total), .groups = "drop") %>% 
-      group_by(fecha, entidad) %>%
-      mutate(porcentaje = (total / sum(total)) * 100) %>%  # Corrección de porcentaje
-      ungroup() %>%
-      mutate(tooltip_text = paste0(
-        "<b>Año:</b> ", fecha, "<br>",
-        "<b>Entidad:</b> ", entidad, "<br>",
-        "<b>Delito:</b> ", delito, "<br>",
-        "<b>Total:</b> ", scales::comma(abs(total)), "<br>",
-        "<b>Porcentaje:</b> ", round(porcentaje, 1), "%<br>"
-      )) %>%
+  output$gr_nacimiento_ano <- renderPlot({
+    nacimiento_reactive_ano() %>%
       ggplot(aes(
-        x = reorder(entidad, -total),
+        x = as.factor(ano),
         y = total,
-        fill = delito,
-        text = tooltip_text  # Agregado para que Plotly lo reconozca
+        fill = total,
       )) +
-      geom_col() +
+      geom_bar(stat = "identity") +
+      geom_text(aes(label = scales::comma(total)), angle=0 , 
+                hjust = 0.5,  vjust=-0.7,
+                size = 4,  
+                color = "black") +
       labs(
         x = "", y = "", fill = " ",
-        title = paste0("Total de carpetas de investigación por tipo de delito y año, ", input$violencia_fecha),
-        caption = "Fuente: elaboración propia con base en los datos del SESNSP | Ipas Lac"
-      ) +
+        title = paste0("Total de nacimientos por año y entidad"),
+        subtitle = paste0("Entidad: ", input$nacimiento_entidad),
+        caption = paste0("Fuente: elaboración propia con base en los datos de la Secretaría de Salud | Ipas Lac",
+                         "Fecha de consulta: ", Sys.Date())) +
+      scale_y_continuous(labels = scales::comma) +
+      guides(fill = guide_legend(override.aes = list(size = 10))) + 
       scale_y_continuous(labels = scales::comma) +
       theme_minimal() +
       theme_ipas +
       theme(
-        legend.position = "bottom",
-        axis.text.x = element_text(size = 12, color = "black", angle = 90, hjust = 1)
-      ) -> gr_8
-    
-    ggplotly(gr_8, tooltip = "text") %>%  
-      layout(
-        title = list(
-          text = paste0(
-            "<b>Total de carpetas de investigación por tipo de delito y año</b>",
-            "<br><span style='font-size:14px'>Año: ", input$violencia_fecha, "</span>"),
-          font = list(family = "Montserrat", size = 18, color = "black"), x = 0),
-        margin = list(l = 0, r = 0, b = 20, t = 50),
-        legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -.7,
-                      font=list(size=10)), title_y = 0.9,
-        annotations = list(
-          list(
-            text = "Fuente: elaboración propia con base en los datos del SESNSP | Ipas Lac",
-            xref = "paper", yref = "paper",
-            x = 0, y = -1,
-            showarrow = FALSE,
-            font = list(family = "Montserrat", size = 10, color = "black"),
-            align = "left"
-          ))) 
+        legend.position = "none",
+        axis.text.x = element_text(size = 13, color = "black", angle = 0, hjust = 0.5)
+      ) 
+ 
   })
   
-  output$tabla_violencia <- DT::renderDataTable({
-    violencia_reactive() %>%
-      group_by(fecha, entidad, delito) %>% 
-      summarise(total = sum(total), .groups = "drop") %>% 
-      group_by(fecha, entidad) %>%
-      mutate(porcentaje = (total / sum(total)) * 100) %>%
-      arrange(desc(rowSums(across(where(is.numeric))))) %>% 
+  output$tabla_nacimiento_ano <- DT::renderDataTable({
+    nacimiento_reactive_ano() %>%
+      select(ano, total) %>% 
+      arrange(-total) %>%
       datatable(
         extensions = 'Buttons',
         options = list(
@@ -1348,13 +1697,314 @@ demografia_reactive <- reactive({
           autoWidth = TRUE
         ),
         rownames = FALSE,
-        colnames = c("Año", "Entidad", "Delito", "Total", "Porcentaje")
+        colnames = c(
+          "Año",
+          "Total"
+        )
       ) %>%
-      formatRound(columns = 4, digits = 0) %>%  
-      formatRound(columns = 5, digits = 2)
+      # formatRound(columns = c(3,4), digits = 0) %>%
+      formatRound(columns = c(2), digits = 0)  
   })
   
+  
+# tasas de fecundidad:--------------------------------------------------------
+  
+  enadid_reactive <- reactive({
+    enadid_fecundidad %>% 
+      filter(
+        ano %in% input$enadid_año, 
+        #grupo_edad %in% input$enadid_edad, 
+        nom_ent %in% input$enadid_entidad
+      )
+  })
+  
+  enadid_reactive2 <- reactive({
+    enadid %>% 
+      filter(
+        ano %in% input$enadid_año2, 
+        grupo_edad %in% input$enadid_edad2, 
+        nom_ent %in% input$enadid_entidad2
+      )
+  })
+  
+  enadid_reactive3 <- reactive({
+    enadid %>% 
+      filter(
+        # ano %in% input$enadid_año2, 
+        grupo_edad %in% input$enadid_edad3, 
+        nom_ent %in% input$enadid_entidad3
+      )
+  })
+  
+
+  
+  output$gr_tasa_fecundidad <- renderPlot({
+    
+    # data_nacional <- enadid_reactive() %>% 
+    #   summarise(tasa=sum(tasa)/32) %>%
+    #   mutate(#tasa=hijos_vivos/mujeres, 
+    #          nom_ent="Nacional")
+    
+    
+    enadid_fecundidad %>% 
+      filter(
+        ano %in% input$enadid_año, 
+        #grupo_edad %in% input$enadid_edad, 
+         nom_ent %in% input$enadid_entidad
+      ) %>% 
+      # mutate(hijos_nacidos2 =as.integer(hijos_nacidos2)*factor) %>%
+      # group_by(nom_ent) %>%
+      # summarise(mujeres=sum(factor),
+      #           hijos_vivos=sum(hijos_nacidos2 , na.rm = T)) %>%
+      # mutate(tasa=hijos_vivos/mujeres) %>%
+      # bind_rows(data_nacional) %>% 
+      mutate(col_nacional=ifelse(nom_ent=="Nacional", 1, 0)) %>% 
+      ggplot(aes(reorder(nom_ent, -tasa), tasa, 
+                 fill=factor(col_nacional)
+      )) +
+      geom_col() +
+      geom_text(aes(label = scales::comma(tasa, .01)), angle=90 , 
+                hjust = 1.1,  
+                size = 6,  
+                color = "black") +
+      labs(
+        x = "", y = "", fill = " ",
+        title = paste0("Tasa de fecundidad de los últimos 6 años por entidad"),
+        subtitle = paste0("Año: ", input$enadid_año),
+        caption = paste0("Fuente: elaboración propia con base en los datos dela ENADID | Ipas Lac",
+                         "\nFecha de consulta: ", Sys.Date())) +
+      theme_ipas +
+      theme(axis.text.x = element_text(angle = 90), 
+            legend.position = "none") +
+      scale_fill_manual(values = c("#f9592a", "grey")) +
+      labs(x="", y="", fill="") 
+   
+  })
+  
+  # output$gr_prom_abortos <- renderPlot({
+  #   
+  #   data_nacional <- enadid_reactive() %>% 
+  #     # filter(edad>=15, edad<=44) %>%
+  #     replace_na(list(abortos=0)) %>% 
+  #     mutate(abortos=abortos*factor) %>%
+  #     summarise(mujeres=sum(factor),
+  #               abortos=sum(abortos, na.rm = T)) %>%
+  #     mutate(tasa=abortos/mujeres) %>% 
+  #     mutate(nom_ent="Nacional") %>% ungroup()
+  #   
+  #  enadid_reactive() %>% 
+  #     # filter(edad>=15, edad<=44) %>%
+  #     replace_na(list(abortos=0)) %>% 
+  #     mutate(abortos=abortos*factor) %>%
+  #     group_by(nom_ent) %>%
+  #     summarise(mujeres=sum(factor),
+  #               abortos=sum(abortos, na.rm = T)) %>%
+  #     mutate(tasa=abortos/mujeres) %>%
+  #     bind_rows(data_nacional) %>% 
+  #     mutate(tooltip_text = paste0(
+  #       "<b>Entidad:</b> ", nom_ent, "<br>",
+  #       "<b>Tasa:</b> ", scales::comma(tasa, .01), "<br>"
+  #     )) %>%  
+  #     
+  #     mutate(col_nacional=ifelse(nom_ent=="Nacional", 1, 0)) %>% 
+  #     ggplot(aes(reorder(nom_ent, -tasa), tasa, 
+  #                text=tooltip_text, fill=factor(col_nacional)
+  #     )) +
+  #     geom_col(position = "dodge") +
+  #     theme_ipas +
+  #     theme(axis.text.x = element_text(angle = 90), 
+  #           legend.position = "none") +
+  #     scale_fill_manual(values = c("#b75dea", "grey")) +
+  #     labs(x="", y="", fill="") 
+  #   
+  #  
+  # })
+  
+  
+  # Violencia entidad--------------------------------------------------------------------
+  
+  violencia_reactive <- reactive({
+    df_violencia %>% 
+      filter(
+        fecha %in% input$violencia_fecha,
+        # delito %in% input$violencia_delito,
+        entidad %in% input$violencia_entidad
+      )
+  })
+  
+  output$gr_violencia <- renderPlot({
+    violencia_reactive() %>%
+      group_by(fecha, entidad, delito) %>%
+      summarise(total = sum(total), .groups = "drop") %>%
+      group_by(fecha, entidad) %>%
+      mutate(
+        total_entidad = sum(total),  # ✅ Total por entidad
+        porcentaje = (total / total_entidad) * 100  # ✅ Cada entidad suma 100%
+      ) %>%
+      ungroup() %>%
+      
+      ggplot(aes(
+        x = reorder(entidad, -total_entidad),  # ✅ Orden por total de la entidad
+        y = total,
+        fill = delito)) +
+      geom_col() +
+      geom_text(aes(label = paste0(round(porcentaje * 1, 1), "%")), 
+               position = position_stack(vjust = 0.5), size = 3, color = "white") + 
+      
+      labs(
+        x = "", y = "", fill = " ",
+        title = paste0("Total de carpetas de investigación por tipo de delito y año, "), 
+        subtitle=paste0("\nAño: ",input$violencia_fecha),
+        caption = paste0("\nFuente: elaboración propia con base en los datos del SESNSP | Ipas Lac",
+                         "\nFecha de consulta: ", Sys.Date())
+      ) +
+      scale_y_continuous(labels = scales::comma) +
+      theme_minimal() +
+      theme_ipas +
+      theme(
+        legend.position = "bottom",
+        axis.text.x = element_text(size = 12, color = "black", angle = 90, hjust = 1),
+        legend.text = element_text(size=9),
+      ) 
+  })
+  
+  # Tabla asegurando que cada entidad sume 100% y agregando total por entidad
+  output$tabla_violencia <- DT::renderDataTable({
+    datos <- violencia_reactive() %>%
+      group_by(fecha, entidad, delito) %>%
+      summarise(total = sum(total), .groups = "drop") %>%
+      group_by(fecha, entidad) %>%
+      mutate(
+        total_entidad = sum(total),  # ✅ Total de delitos por entidad
+        porcentaje = (total / total_entidad) * 100  # ✅ Normalizar para que sume 100%
+      ) %>%
+      ungroup()
+    
+    # Agregar la fila de totales por entidad
+    datos_totales <- datos %>%
+      group_by(fecha, entidad) %>%
+      summarise(
+        delito = "TOTAL",
+        total = sum(total),
+        total_entidad = sum(total_entidad) / n_distinct(delito),  # Promedio del total
+        porcentaje = 100,  # ✅ Cada entidad suma 100%
+        .groups = "drop"
+      )
+    
+    # Unir los datos de delitos con los totales por entidad
+    datos_finales <- bind_rows(datos, datos_totales) %>%
+      arrange(fecha, entidad, desc(delito != "TOTAL"))  # ✅ Ordenar dejando "TOTAL" al final
+    
+    datatable(
+      datos_finales,
+      extensions = 'Buttons',
+      options = list(
+        dom = 'Bfrtip',
+        buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+        pageLength = 10,
+        autoWidth = TRUE
+      ),
+      rownames = FALSE,
+      colnames = c("Año", "Entidad", "Delito", "Total", "Total por entidad", "Porcentaje (%)")
+    ) %>%
+      formatRound(columns = c("total", "total_entidad"), digits = 0) %>%
+      formatRound(columns = "porcentaje", digits = 1)
+  })
+
+  
+  # Violencia año--------------------------------------------------------------------
+  
+  violencia_reactive_ano <- reactive({
+    df_violencia %>% 
+      filter(
+        fecha %in% input$violencia_fecha_ano,
+        # delito %in% input$violencia_delito,
+        entidad %in% input$violencia_entidad_ano
+      )
+  })
+  
+  output$gr_violencia_ano <- renderPlot({
+    violencia_reactive_ano() %>%
+      group_by(fecha, entidad, delito) %>%
+      summarise(total = sum(total), .groups = "drop") %>%
+      group_by(fecha) %>%
+      mutate(
+        total_anual = sum(total),  # ✅ Total de delitos por año
+        porcentaje = (total / total_anual) * 100  # ✅ Cada año suma 100%
+      ) %>%
+      ungroup() %>%
+      ggplot(aes(
+        x = as.factor(fecha),  # ✅ Los años en el eje X
+        y = total,
+        fill = delito
+        )) +
+      geom_col() +
+      geom_text(aes(label = paste0(round(porcentaje * 1, 1), "%")), 
+               position = position_stack(vjust = 0.5), size = 3, color = "white") + 
+      labs(
+        x = "", y = "", fill = "",
+        title = paste0("Total de carpetas de investigación por tipo de delito y entidad"),
+        subtitle = paste0("\nEntidad: ", input$violencia_entidad_ano),
+        caption = paste0("Fuente: elaboración propia con base en los datos del SESNSP | Ipas Lac",
+                         "\nFecha de consulta: ", Sys.Date())
+      ) +
+      scale_y_continuous(labels = scales::comma) +
+      theme_minimal() +
+      theme_ipas +
+      theme(
+        legend.position = "bottom",
+        axis.text.x = element_text(size = 9, color = "black", angle = 0, hjust = 1),
+        legend.text = element_text(size=9),
+      ) 
+  })
+  
+  output$tabla_violencia_ano <- DT::renderDataTable({
+    datos <- violencia_reactive_ano() %>%
+      group_by(fecha, entidad, delito) %>%
+      summarise(total = sum(total), .groups = "drop") %>%
+      group_by(fecha) %>%
+      mutate(
+        total_anual = sum(total), 
+        porcentaje = (total / total_anual) * 100  
+      ) %>%
+      ungroup()
+    
+    # Agregar la fila de totales por año
+    datos_totales <- datos %>%
+      group_by(fecha) %>%
+      summarise(
+        entidad = "TOTAL",
+        delito = "TOTAL",
+        total = sum(total),
+        total_anual = sum(total_anual) / n_distinct(delito),
+        porcentaje = 100,  
+        .groups = "drop"
+      )
+    
+    # Unir los datos de delitos con los totales por año
+    datos_finales <- bind_rows(datos, datos_totales) %>%
+      arrange(fecha, entidad, desc(delito != "TOTAL")) 
+    
+    datatable(
+      datos_finales,
+      extensions = 'Buttons',
+      options = list(
+        dom = 'Bfrtip',
+        buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+        pageLength = 10,
+        autoWidth = TRUE
+      ),
+      rownames = FALSE,
+      colnames = c("Año", "Entidad", "Delito", "Total", "Total por año", "Porcentaje (%)")
+    ) %>%
+      formatRound(columns = c("total", "total_anual"), digits = 0) %>%
+      formatRound(columns = "porcentaje", digits = 1)
+  })
+  
+    
+  
   # ENADID ----------------------------------------------------------------------
+
   enadid_reactive <- reactive({
     enadid %>% 
       filter(
@@ -1382,120 +2032,7 @@ demografia_reactive <- reactive({
       )
   })
   
-  output$gr_tasa_fecundidad <- renderPlotly({
-    
-    data_nacional <- enadid_reactive() %>% 
-      filter(edad>=15, edad<=44) %>%
-      mutate(hijos_nacidos2 =as.integer(hijos_nacidos2)*factor) %>%
-      # group_by(nom_ent) %>%
-      summarise(mujeres=sum(factor),
-                hijos_vivos=sum(hijos_nacidos2 , na.rm = T)) %>%
-      mutate(tasa=hijos_vivos/mujeres, 
-             nom_ent="Nacional")
-    
-    gr_tasa <- enadid_reactive() %>% 
-      filter(edad>=15, edad<=44) %>%
-      mutate(hijos_nacidos2 =as.integer(hijos_nacidos2)*factor) %>%
-      group_by(nom_ent) %>%
-      summarise(mujeres=sum(factor),
-                hijos_vivos=sum(hijos_nacidos2 , na.rm = T)) %>%
-      mutate(tasa=hijos_vivos/mujeres) %>%
-      bind_rows(data_nacional) %>% 
-      mutate(col_nacional=ifelse(nom_ent=="Nacional", 1, 0)) %>% 
-      mutate(tooltip_text = paste0(
-        "<b>Entidad:</b> ", nom_ent, "<br>",
-        "<b>Tasa:</b> ", scales::comma(tasa, .01), "<br>"
-      )) %>%  
-      ggplot(aes(reorder(nom_ent, -tasa), tasa, 
-                 text=tooltip_text, fill=factor(col_nacional)
-                 )) +
-      geom_col() +
-      
-    theme_ipas +
-      theme(axis.text.x = element_text(angle = 90), 
-            legend.position = "none") +
-      scale_fill_manual(values = c("#f9592a", "grey")) +
-      labs(x="Entidad", y="Tasa de fecundidad", fill="") 
-    
-    ggplotly(gr_tasa, tooltip = "text") %>%
-      layout(
-        title = list(
-          text = paste0(
-            "<b>Tasa de fecundidad de los últimos 6 años por entidad</b>",
-            "<br><span style='font-size:14px'>Año: ", input$enadid_año, "</span>"),
-          font = list(family = "Montserrat", size = 18, color = "black"), x = 0),
-        margin = list(l = 0, r = 0, b = 20, t = 50),
-        legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -.7,
-                      font=list(size=10)), title_y = 0.9,
-        annotations = list(
-          list(
-            text = "Fuente: elaboración propia con base en los datos dela ENADID | Ipas Lac",
-            xref = "paper", yref = "paper",
-            x = 0, y = -1,
-            showarrow = FALSE,
-            font = list(family = "Montserrat", size = 10, color = "black"),
-            align = "left"
-          )))
-  })
-  
-  output$gr_prom_abortos <- renderPlotly({
-    
-    data_nacional <- enadid_reactive() %>% 
-      # filter(edad>=15, edad<=44) %>%
-      replace_na(list(abortos=0)) %>% 
-      mutate(abortos=abortos*factor) %>%
-      summarise(mujeres=sum(factor),
-                abortos=sum(abortos, na.rm = T)) %>%
-      mutate(tasa=abortos/mujeres) %>% 
-      mutate(nom_ent="Nacional") %>% ungroup()
-    
-    gr_tasa <- enadid_reactive() %>% 
-      # filter(edad>=15, edad<=44) %>%
-      replace_na(list(abortos=0)) %>% 
-      mutate(abortos=abortos*factor) %>%
-      group_by(nom_ent) %>%
-      summarise(mujeres=sum(factor),
-                abortos=sum(abortos, na.rm = T)) %>%
-      mutate(tasa=abortos/mujeres) %>%
-      bind_rows(data_nacional) %>% 
-      mutate(tooltip_text = paste0(
-        "<b>Entidad:</b> ", nom_ent, "<br>",
-        "<b>Tasa:</b> ", scales::comma(tasa, .01), "<br>"
-      )) %>%  
-      
-      mutate(col_nacional=ifelse(nom_ent=="Nacional", 1, 0)) %>% 
-      ggplot(aes(reorder(nom_ent, -tasa), tasa, 
-                 text=tooltip_text, fill=factor(col_nacional)
-      )) +
-      geom_col(position = "dodge") +
-      theme_ipas +
-      theme(axis.text.x = element_text(angle = 90), 
-            legend.position = "none") +
-      scale_fill_manual(values = c("#b75dea", "grey")) +
-      labs(x="Entidad", y="Tasa de abortos", fill="") 
-    
-    ggplotly(gr_tasa, tooltip = "text") %>%
-      layout(
-        title = list(
-          text = paste0(
-            "<b>Tasa de abortos por cada 100 mujeres y por entidad</b>",
-            "<br><span style='font-size:14px'>Año: ", input$enadid_año, "</span>"),
-          font = list(family = "Montserrat", size = 18, color = "black"), x = 0),
-        margin = list(l = 0, r = 0, b = 20, t = 50),
-        legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -.7,
-                      font=list(size=10)), title_y = 0.9,
-        annotations = list(
-          list(
-            text = "Fuente: elaboración propia con base en los datos dela ENADID | Ipas Lac",
-            xref = "paper", yref = "paper",
-            x = 0, y = -1,
-            showarrow = FALSE,
-            font = list(family = "Montserrat", size = 10, color = "black"),
-            align = "left"
-          )))
-  })
-  
-  output$gr_uso_anti_primera_vez <- renderPlotly({
+  output$gr_uso_anti_primera_vez <- renderPlot({
     
     data_nacional <-  enadid_reactive2() %>% 
       drop_na(edad_primera_relacion_sexual) %>% 
@@ -1526,35 +2063,23 @@ demografia_reactive <- reactive({
                  text=tooltip_text, fill=tipo
       )) +
       geom_col() +
-      labs(x="Entidad", y="Porcentaje de uso\nde anticonceptivos") +
+      labs(x="", y="") +
+      geom_text(data=. %>% 
+                  filter(Porcentaje>0.05),
+                aes(label=scales::percent(Porcentaje, 1)), 
+                position = position_stack(vjust = .8), size=5
+      ) +
       theme_ipas +
       theme(axis.text.x = element_text(angle = 90), 
             legend.position = "none") +
       scale_y_continuous(labels = percent)
     
-    ggplotly(gr_tasa, tooltip = "text") %>%
-      layout(
-        title = list(
-          text = paste0(
-            "<b>Total de uso de conceptivos en la primera relación sexual</b>",
-            "<br><span style='font-size:14px'>Año: ", input$enadid_año2, "</span>"),
-          font = list(family = "Montserrat", size = 18, color = "black"), x = 0),
-        margin = list(l = 0, r = 0, b = 20, t = 50),
-        legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -.7,
-                      font=list(size=10)), title_y = 0.9,
-        annotations = list(
-          list(
-            text = "Fuente: elaboración propia con base en los datos dela ENADID | Ipas Lac",
-            xref = "paper", yref = "paper",
-            x = 0, y = -1,
-            showarrow = FALSE,
-            font = list(family = "Montserrat", size = 10, color = "black"),
-            align = "left"
-          )))
+    gr_tasa
+    
   })
   
   
-  output$gr_uso_anticonceptivo <- renderPlotly({
+  output$gr_uso_anticonceptivo <- renderPlot({
     
     data_nacional <- enadid_reactive2() %>% 
       group_by("tipo"=actual_metodo) %>%
@@ -1572,8 +2097,8 @@ demografia_reactive <- reactive({
                                     "Inyecciones anticonceptivas",
                                     "Implante anticonceptivo", "Parche anticonceptivo", 
                                     "DIU", "Condón masculino", "Condón femenino"
-                                    )
-                         )) %>% 
+                         )
+      )) %>% 
       mutate(tooltip_text = paste0(
         "<b>Entidad:</b> ", nom_ent, "<br>",
         "<b>Tipo de anticonceptivo:</b> ", tipo, "<br>",
@@ -1581,39 +2106,27 @@ demografia_reactive <- reactive({
         "<b>Porcentaje:</b> ", scales::percent(Porcentaje, 1), "<br>"
       )) %>%  
       ggplot(aes(nom_ent, Porcentaje, 
-                 text=tooltip_text, fill=tipo
+                 text=tooltip_text, fill=tipo, grouo=tipo
       )) +
       geom_col() +
-      labs(x="Entidad", y="Porcentaje de uso\nde anticonceptivos") +
+      labs(x="", y="") +
+      geom_text(data=. %>% 
+                  filter(Porcentaje>0.05),
+                  aes(label=scales::percent(Porcentaje, 1)), 
+                position = position_stack(vjust = .8), size=5
+                ) +
       theme_ipas +
       theme(axis.text.x = element_text(angle = 90), 
             legend.position = "none") +
       scale_y_continuous(labels = percent)
     
-    ggplotly(gr_tasa, tooltip = "text") %>%
-      layout(
-        title = list(
-          text = paste0(
-            "<b>Uso de conceptivos actualmente</b>",
-            "<br><span style='font-size:14px'>Año: ", input$enadid_año2, "</span>"),
-          font = list(family = "Montserrat", size = 18, color = "black"), x = 0),
-        margin = list(l = 0, r = 0, b = 20, t = 50),
-        legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -.7,
-                      font=list(size=10)), title_y = 0.9,
-        annotations = list(
-          list(
-            text = "Fuente: elaboración propia con base en los datos dela ENADID | Ipas Lac",
-            xref = "paper", yref = "paper",
-            x = 0, y = -1,
-            showarrow = FALSE,
-            font = list(family = "Montserrat", size = 10, color = "black"),
-            align = "left"
-          )))
+    gr_tasa
+    
   })
   
   #####
   #en el tiempo #
-  output$gr_tasa_fecundidad_tiempo <- renderPlotly({
+  output$gr_tasa_fecundidad_tiempo <- renderPlot({
     
     # data_nacional <- total_enadid %>%
     #   filter(grupo_edad %in% input$enadid_edad3) %>% 
@@ -1643,97 +2156,64 @@ demografia_reactive <- reactive({
                  text=tooltip_text, fill=factor(ano)
       )) +
       geom_col(position = "dodge") +
-      
+      labs(x="", y="", fill="")+
       theme_ipas +
+      geom_text(aes(label=tasa)) +
       theme(#axis.text.x = element_text(angle = 90), 
-            legend.position = "none") +
+        legend.position = "none") +
       scale_fill_manual(values = c("#f9592a", "grey")) +
-      labs(x="Año", y="Tasa de fecundidad", fill="")+
+      labs(x="", y="", fill="")+
       theme(axis.text.x = element_text(angle = 0))
     
-    ggplotly(gr_tasa, tooltip = "text") %>%
-      layout(
-        title = list(
-          text = paste0(
-            "<b>Tasa de fecundidad de los últimos 6 años por entidad</b>",
-            "<br><span style='font-size:14px'>Entidad: ", input$enadid_entidad3, "</span>"),
-          font = list(family = "Montserrat", size = 18, color = "black"), x = 0),
-        margin = list(l = 0, r = 0, b = 20, t = 50),
-        legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -.7,
-                      font=list(size=10)), title_y = 0.9,
-        annotations = list(
-          list(
-            text = "Fuente: elaboración propia con base en los datos dela ENADID | Ipas Lac",
-            xref = "paper", yref = "paper",
-            x = 0, y = -1,
-            showarrow = FALSE,
-            font = list(family = "Montserrat", size = 10, color = "black"),
-            align = "left"
-          )))
+    gr_tasa
+    
   })
   
-  output$gr_prom_abortos_tiempo <- renderPlotly({
-    
-    # data_nacional <- 
-    #   total_enadid %>%
-    #   filter(grupo_edad %in% input$enadid_edad3) %>% 
-    #   replace_na(list(abortos=0)) %>% 
-    #   mutate(abortos=abortos*factor) %>%
-    #   group_by(ano) %>% 
-    #   summarise(mujeres=sum(factor),
-    #             abortos=sum(abortos, na.rm = T)) %>%
-    #   mutate(tasa=abortos/mujeres) %>% 
-    #   mutate(nom_ent="Nacional") %>% ungroup()
-    
-    gr_tasa <- enadid_reactive3() %>% 
-      # filter(edad>=15, edad<=44) %>%
-      replace_na(list(abortos=0)) %>% 
-      mutate(abortos=abortos*factor) %>%
-      group_by(nom_ent, ano) %>%
-      summarise(mujeres=sum(factor),
-                abortos=sum(abortos, na.rm = T)) %>%
-      mutate(tasa=abortos/mujeres) %>%
-      # bind_rows(data_nacional) %>% 
-      mutate(tooltip_text = paste0(
-        "<b>Entidad:</b> ", nom_ent, "<br>",
-        "<b>Tasa:</b> ", scales::comma(tasa, .01), "<br>", 
-        "<b>Año:</b> ", ano, "<br>"
-      )) %>%  
-      
-      mutate(col_nacional=ifelse(nom_ent=="Nacional", 1, 0)) %>% 
-      ggplot(aes(factor(ano), tasa, 
-                 text=tooltip_text, fill=factor(ano)
-      )) +
-      geom_col(position = "dodge") +
-      theme_ipas +
-      theme(#axis.text.x = element_text(angle = 90), 
-            legend.position = "none") +
-      scale_fill_manual(values = c("#b75dea", "grey")) +
-      labs(x="Año", y="Tasa de abortos", fill="") +
-      theme(axis.text.x = element_text(angle = 0))
-    
-    ggplotly(gr_tasa, tooltip = "text") %>%
-      layout(
-        title = list(
-          text = paste0(
-            "<b>Tasa de abortos por cada 100 mujeres y por entidad</b>",
-            "<br><span style='font-size:14px'>Entidad: ", input$enadid_entidad3, "</span>"),
-          font = list(family = "Montserrat", size = 18, color = "black"), x = 0),
-        margin = list(l = 0, r = 0, b = 20, t = 50),
-        legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -.7,
-                      font=list(size=10)), title_y = 0.9,
-        annotations = list(
-          list(
-            text = "Fuente: elaboración propia con base en los datos dela ENADID | Ipas Lac",
-            xref = "paper", yref = "paper",
-            x = 0, y = -1,
-            showarrow = FALSE,
-            font = list(family = "Montserrat", size = 10, color = "black"),
-            align = "left"
-          )))
-  })
+  # output$gr_prom_abortos_tiempo <- renderPlot({
+  #   
+  #   # data_nacional <- 
+  #   #   total_enadid %>%
+  #   #   filter(grupo_edad %in% input$enadid_edad3) %>% 
+  #   #   replace_na(list(abortos=0)) %>% 
+  #   #   mutate(abortos=abortos*factor) %>%
+  #   #   group_by(ano) %>% 
+  #   #   summarise(mujeres=sum(factor),
+  #   #             abortos=sum(abortos, na.rm = T)) %>%
+  #   #   mutate(tasa=abortos/mujeres) %>% 
+  #   #   mutate(nom_ent="Nacional") %>% ungroup()
+  #   
+  #   gr_tasa <- enadid_reactive3() %>% 
+  #     # filter(edad>=15, edad<=44) %>%
+  #     replace_na(list(abortos=0)) %>% 
+  #     mutate(abortos=abortos*factor) %>%
+  #     group_by(nom_ent, ano) %>%
+  #     summarise(mujeres=sum(factor),
+  #               abortos=sum(abortos, na.rm = T)) %>%
+  #     mutate(tasa=abortos/mujeres) %>%
+  #     # bind_rows(data_nacional) %>% 
+  #     mutate(tooltip_text = paste0(
+  #       "<b>Entidad:</b> ", nom_ent, "<br>",
+  #       "<b>Tasa:</b> ", scales::comma(tasa, .01), "<br>", 
+  #       "<b>Año:</b> ", ano, "<br>"
+  #     )) %>%  
+  #     
+  #     mutate(col_nacional=ifelse(nom_ent=="Nacional", 1, 0)) %>% 
+  #     ggplot(aes(factor(ano), tasa, 
+  #                text=tooltip_text, fill=factor(ano)
+  #     )) +
+  #     geom_col(position = "dodge") +
+  #     labs(x="", y="", fill="")+
+  #     
+  #     theme_ipas +
+  #     theme(#axis.text.x = element_text(angle = 90), 
+  #       legend.position = "none") +
+  #     scale_fill_manual(values = c("#b75dea", "grey")) +
+  #     labs(x="", y="", fill="") +
+  #     theme(axis.text.x = element_text(angle = 0))
+  #   
+  # })
   
-  output$gr_uso_anti_primera_vez_tiempo <- renderPlotly({
+  output$gr_uso_anti_primera_vez_tiempo <- renderPlot({
     
     # data_nacional <-  total_enadid %>%
     #   filter(grupo_edad %in% input$enadid_edad3) %>% 
@@ -1762,49 +2242,30 @@ demografia_reactive <- reactive({
         "<b>Porcentaje:</b> ", scales::percent(Porcentaje, 1), "<br>", 
         "<b>Año:</b> ", ano, "<br>"
       )) %>%  
-      mutate(tipo=str_wrap(tipo, 12)) %>% 
-      ggplot(aes(tipo, Porcentaje, 
+      mutate(tipo=str_wrap(tipo, 5),
+             as.factor(ano)) %>% 
+      ggplot(aes(x=reorder(tipo, -Porcentaje), Porcentaje, 
                  text=tooltip_text, fill=factor(ano)
       )) +
+
       geom_col(position = "dodge") +
-      labs(x="Tipo", y="Porcentaje de uso\nde anticonceptivos") +
+      geom_text(aes(label=percent(Porcentaje, 1)), 
+                position = position_dodge(width = 1), 
+                size=8
+      ) +
+      labs(x="", y="", fill="") +
       theme_ipas +
-      theme(axis.text.x = element_text(angle = 0), 
-            legend.position = "none") +
+      theme(axis.text.x = element_text(angle = 40, size = 9), 
+            legend.position = "bottom") +
       scale_y_continuous(labels = percent) #+
-      # facet_wrap(.~ano)
     
-    ggplotly(gr_tasa, tooltip = "text") %>%
-      layout(
-        title = list(
-          text = paste0(
-            "<b>Total de uso de conceptivos en la primera relación sexual</b>",
-            "<br><span style='font-size:14px'>Entidad: ", input$enadid_entidad3, "</span>"),
-          font = list(family = "Montserrat", size = 18, color = "black"), x = 0),
-        margin = list(l = 0, r = 0, b = 20, t = 50),
-        legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -.7,
-                      font=list(size=10)), title_y = 0.9,
-        annotations = list(
-          list(
-            text = "Fuente: elaboración propia con base en los datos dela ENADID | Ipas Lac",
-            xref = "paper", yref = "paper",
-            x = 0, y = -1,
-            showarrow = FALSE,
-            font = list(family = "Montserrat", size = 10, color = "black"),
-            align = "left"
-          )))
+    gr_tasa
+    
   })
   
   
-  output$gr_uso_anticonceptivo_tiempo <- renderPlotly({
-    
-    # data_nacional <- total_enadid %>%
-    #   filter(grupo_edad %in% input$enadid_edad3) %>% 
-    #   group_by("tipo"=actual_metodo, ano) %>%
-    #   summarise(uso_metodos=sum(factor)) %>% group_by(ano) %>% 
-    #   mutate(Porcentaje=uso_metodos/sum(uso_metodos)) %>% 
-    #   mutate(nom_ent="Nacional") %>% ungroup() 
-    
+  output$gr_uso_anticonceptivo_tiempo <- renderPlot({
+   
     gr_tasa <- enadid_reactive3() %>% 
       group_by("tipo"=actual_metodo, nom_ent, ano) %>%
       summarise(uso_metodos=sum(factor)) %>% group_by(nom_ent, ano) %>% 
@@ -1831,81 +2292,69 @@ demografia_reactive <- reactive({
         "<b>Año:</b> ", ano, "<br>"
       )) %>%  
       mutate(tipo=str_wrap(tipo, 12)) %>% 
-      ggplot(aes(tipo, Porcentaje, 
+      ggplot(aes(reorder(tipo, -Porcentaje), Porcentaje, 
                  text=tooltip_text, fill=factor(ano)
       )) +
+
       geom_col(position = "dodge") +
-      labs(x="Tipo", y="Porcentaje de uso\nde anticonceptivos") +
+      geom_text(aes(label=percent(Porcentaje, 1)), 
+                position = position_dodge(width = 1), 
+                size=8
+      ) +
+      labs(x="", y="", fill="") +
       theme_ipas +
-      theme(axis.text.x = element_text(angle = 0), 
-            legend.position = "none") +
+      theme(axis.text.x = element_text(angle = 40, size = 10), 
+            legend.position = "bottom") +
       scale_y_continuous(labels = percent) #  +
-      # facet_wrap(.~ano)
     
-    ggplotly(gr_tasa, tooltip = "text") %>%
-      layout(
-        title = list(
-          text = paste0(
-            "<b>Uso de conceptivos actualmente</b>",
-            "<br><span style='font-size:14px'>Entidad: ", input$enadid_entidad3, "</span>"),
-          font = list(family = "Montserrat", size = 18, color = "black"), x = 0),
-        margin = list(l = 0, r = 0, b = 20, t = 50),
-        legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -.7,
-                      font=list(size=10)), title_y = 0.9,
-        annotations = list(
-          list(
-            text = "Fuente: elaboración propia con base en los datos dela ENADID | Ipas Lac",
-            xref = "paper", yref = "paper",
-            x = 0, y = -1,
-            showarrow = FALSE,
-            font = list(family = "Montserrat", size = 10, color = "black"),
-            align = "left"
-          )))
+    gr_tasa
+
   })
   
   #####
   #tablas 
   output$tabla_fecundidad <- DT::renderDataTable({
-    tabla_nacional <- enadid %>% 
-      filter(edad>=15, edad<=44) %>%
-      mutate(hijos_nacidos2 =as.integer(hijos_nacidos2)*factor) %>%
-      group_by(ano) %>%
-      summarise(mujeres=sum(factor),
-                hijos_vivos=sum(hijos_nacidos2 , na.rm = T)) %>%
-      mutate(tasa=hijos_vivos/mujeres, 
-             nom_ent="Nacional")
-
-      tabla_estatal <- enadid_reactive() %>% 
-        filter(edad>=15, edad<=44) %>%
-        mutate(hijos_nacidos2 =as.integer(hijos_nacidos2)*factor) %>%
-        group_by(nom_ent, ano) %>%
-        summarise(mujeres=sum(factor),
-                  hijos_vivos=sum(hijos_nacidos2 , na.rm = T)) %>%
-        mutate(tasa=hijos_vivos/mujeres) %>%
-        bind_rows(tabla_nacional)
-      
-      tabla_estatal %>%
-        arrange(desc(rowSums(across(where(is.numeric))))) %>%
-        datatable(
-          extensions = 'Buttons',
-          options = list(
-            dom = 'Bfrtip',
-            buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
-            pageLength = 10,
-            autoWidth = TRUE
-          ),
-          rownames = FALSE,
-          colnames = c("Entidad", "Año", "Total de mujeres",
-                       "Hijos vivos", "Tasa"), 
-          caption = htmltools::tags$caption(
-            style = 'font-size: 25px; color: black;', # Personaliza el tamaño y color
-            "Tabla de indicador de fecundidad de los últimos 6 años"
-          )
-        ) %>%
-        formatRound(columns = 4, digits = 0) %>%
-        formatRound(columns = 5, digits = 2)
-      
-
+    # tabla_nacional <- enadid %>% 
+    #   filter(edad>=15, edad<=44) %>%
+    #   mutate(hijos_nacidos2 =as.integer(hijos_nacidos2)*factor) %>%
+    #   group_by(ano) %>%
+    #   summarise(mujeres=sum(factor),
+    #             hijos_vivos=sum(hijos_nacidos2 , na.rm = T)) %>%
+    #   mutate(tasa=hijos_vivos/mujeres, 
+    #          nom_ent="Nacional")
+    # 
+    # tabla_estatal <- enadid_reactive() %>% 
+    #   filter(edad>=15, edad<=44) %>%
+    #   mutate(hijos_nacidos2 =as.integer(hijos_nacidos2)*factor) %>%
+    #   group_by(nom_ent, ano) %>%
+    #   summarise(mujeres=sum(factor),
+    #             hijos_vivos=sum(hijos_nacidos2 , na.rm = T)) %>%
+    #   mutate(tasa=hijos_vivos/mujeres) %>%
+    #   bind_rows(tabla_nacional)
+    
+    enadid_fecundidad %>%
+      # arrange(desc(rowSums(across(where(is.numeric))))) %>%
+      arrange(desc(tasa)) %>%
+      mutate(tasa=comma(tasa, .01)) %>% 
+      datatable(
+        extensions = 'Buttons',
+        options = list(
+          dom = 'Bfrtip',
+          buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+          pageLength = 10,
+          autoWidth = TRUE
+        ),
+        rownames = FALSE,
+        # colnames = c("Entidad", "Año", "Total de mujeres",
+        #              "Hijos vivos", "Tasa"), 
+        colnames = c("Año", "Entidad", "Tasa"), 
+        caption = htmltools::tags$caption(
+          style = 'font-size: 25px; color: black;', # Personaliza el tamaño y color
+          "Tabla de indicador de fecundidad de los últimos 6 años"
+        )
+      )
+    
+    
     
     
   })
@@ -1972,7 +2421,7 @@ demografia_reactive <- reactive({
       mutate(tipo=str_replace_all(tipo, "_", " ")) %>% 
       group_by(ano, nom_ent, tipo) %>%
       summarise(uso_metodos=sum(factor)) %>% group_by(nom_ent) %>% 
-      mutate(Porcentaje=uso_metodos/sum(uso_metodos)) %>% 
+      mutate(Porcentaje=uso_metodos/sum(uso_metodos)*100) %>% 
       bind_rows(tabla_nacional)
     
     tabla_estatal %>% 
@@ -2002,7 +2451,7 @@ demografia_reactive <- reactive({
     tabla_nacional <- enadid %>% 
       group_by(ano, "tipo"=actual_metodo) %>%
       summarise(uso_metodos=sum(factor)) %>% group_by(ano) %>% 
-      mutate(Porcentaje=uso_metodos/sum(uso_metodos)) %>% 
+      mutate(Porcentaje=uso_metodos/sum(uso_metodos)*100) %>% 
       mutate(nom_ent="Nacional") %>% ungroup() 
     
     tabla_estatal <- enadid %>% 
@@ -2049,8 +2498,6 @@ demografia_reactive <- reactive({
   })
   
 }
-
-
 
 # Lanzar App
 shinyApp(ui = ui, server = server)
