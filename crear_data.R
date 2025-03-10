@@ -397,6 +397,14 @@ enadid_fecundidad <- readxl::read_excel("../datos/enadid_fecundidad.xlsx") %>%
   clean_names()
 
 
+##### tasa de fecunidad especifica #####
+enadid_fecundidad_especifica <- readxl::read_excel("../datos/enadid_fecundidad_especifica.xlsx") %>% 
+  clean_names() %>% 
+  gather(tipo, Total, x15_a_19_anos:x45_a_49_anos) %>% 
+  mutate(tipo=gsub("x", "", tipo),
+         tipo=gsub("_", " ", tipo), 
+         tipo=gsub("ano", "año", tipo))
+
 #####
 #creamos rds
 
@@ -408,7 +416,8 @@ data_total <- list(
   secretariado=secretariado, 
   nacimientos=totalidad_nacimientos, 
   enadid=total_enadid, 
-  enadid_fecundidad=enadid_fecundidad
+  enadid_fecundidad=enadid_fecundidad, 
+  enadid_fecundidad_especifica=enadid_fecundidad_especifica
 )
 
 
